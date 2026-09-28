@@ -40,9 +40,7 @@ describe("blob reference insecure contexts", () => {
 
   test("falls back when subtle is missing", async () => {
     ensureObjectURL()
-    const { subtle: _, ...rest } = realCrypto as Crypto & { subtle: unknown }
-    void _
-    setCrypto({ ...rest, subtle: undefined, getRandomValues: realCrypto.getRandomValues.bind(realCrypto) })
+    setCrypto({ getRandomValues: realCrypto.getRandomValues.bind(realCrypto), subtle: undefined })
     const ref = await createBlobReference(new File([new Uint8Array([9, 9, 9])], "b.png", { type: "image/png" }))
     expect(ref.id).toMatch(/^[0-9a-f]{64}$/)
     expect(ref.url.startsWith("blob:")).toBe(true)
@@ -62,9 +60,7 @@ describe("blob reference insecure contexts", () => {
 
   test("attaches an image on insecure contexts without a draft store", async () => {
     ensureObjectURL()
-    const { subtle: _, ...rest } = realCrypto as Crypto & { subtle: unknown }
-    void _
-    setCrypto({ ...rest, subtle: undefined, getRandomValues: realCrypto.getRandomValues.bind(realCrypto) })
+    setCrypto({ getRandomValues: realCrypto.getRandomValues.bind(realCrypto), subtle: undefined })
     await createRoot(async (dispose) => {
       const prompt = createPromptState()
       const attachments = createPromptAttachmentsCore({
