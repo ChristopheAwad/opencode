@@ -6,7 +6,7 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { uuid } from "@/utils/uuid"
 import { getCursorPosition } from "./editor-dom"
-import { createBlobReference, type DraftStore } from "@/utils/draft-store"
+import { createBlobReference, type BlobReference, type DraftStore } from "@/utils/draft-store"
 import { attachmentMime } from "./files"
 import { normalizePaste, pasteMode } from "./paste"
 
@@ -51,13 +51,20 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
       return false
     }
 
+    let blob: BlobReference
+    try {
+      blob = input.draftStore ? await input.draftStore.putBlob(file) : await createBlobReference(file)
+    } catch {
+      blob = await createBlobReference(file)
+    }
+
     const attachment: ImageAttachmentPart = {
       type: "image",
       id: uuid(),
       filename: file.name,
       sourcePath: input.getPathForFile?.(file) || undefined,
       mime,
-      blob: input.draftStore ? await input.draftStore.putBlob(file) : await createBlobReference(file),
+      blob,
     }
     target.prompt.set([...target.prompt.current(), attachment], target.cursor)
     return true
