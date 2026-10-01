@@ -1,0 +1,48 @@
+# Personal fork build. Never runs upstream (see job guard).
+# Builds the insecure-combined branch into a binary and attaches it to the
+# `personal-latest` release on this fork for plain curl download.
+name: personal-build
+
+on:
+  push:
+    branches:
+      - insecure-combined
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.repository == 'ChristopheAwad/opencode'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Run insecure-origin attachment tests
+        run: bun test --conditions=browser --preload ./happydom.ts ./test-browser/draft-store-insecure.test.ts
+        working-directory: packages/app
+
+      - name: Run insecure-origin code-copy tests
+        run: bun test src/components/clipboard.test.ts
+        working-directory: packages/session-ui
+
+      - name: Build single-platform binary
+        env:
+          # Share the official history file (opencode.db). Without this the
+          # channel defaults to the branch name and the binary creates an
+          # empty opencode-<branch>.db instead.
+          OPENCODE_CHANNEL: latest
+        run: bun ./packages/opencode/script/build.ts --single
+
+      - name: Publish to personal release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BIN=packages/opencode/dist/opencode-linux-x64/bin/opencode
+          test -x "$BIN"
+          cp "$BIN" ./opencode-linux-x64
+          gh release view personal-latest >/dev/null 2>&1 || gh release create personal-latest --title "Personal build" --notes "Unofficial fork build of insecure-combined (image-attachment + code-copy insecure-origin fixes). Not an official OpenCode release." --prerelease
+          gh release upload personal-latest ./opencode-linux-x64 --clobber
