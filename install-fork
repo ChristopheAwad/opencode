@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Personal fork installer for ChristopheAwad/opencode.
+# Installs (or updates to) the latest `insecure-combined` CI build, which
+# contains the insecure-origin image-attachment and code-copy fixes.
+# This file lives on the `insecure-combined` branch only. It is never
+# meant for the upstream project.
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/ChristopheAwad/opencode/insecure-combined/install-fork | bash
+# Re-run the same command at any time to update to the newest CI build.
+set -euo pipefail
+APP=opencode
+
+MUTED='\033[0;2m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+usage() {
+    cat <<EOF
+Personal OpenCode Installer (ChristopheAwad fork)
+
+Usage: install-fork [options]
+
+Options:
+    -h, --help           Display this help message
+        --no-modify-path Don't modify shell config files (.zshrc, .bashrc, etc.)
+
+Examples:
+    curl -fsSL https://raw.githubusercontent.com/ChristopheAwad/opencode/insecure-combined/install-fork | bash
+EOF
+}
+
+no_modify_path=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --no-modify-path)
+            no_modify_path=true
+            shift
+            ;;
+        *)
+            echo -e "${RED}Warning: Unknown option '$1'${NC}" >&2
+            shift
+            ;;
+    esac
+done
+
+raw_os=$(uname -s)
+os="other"
+case "$raw_os" in
+    Linux*) os="linux" ;;
+esac
+
+arch=$(uname -m)
+if [[ "$arch" == "x86_64" ]]; then
+    arch="x64"
+fi
+
+if [[ "$os-$arch" != "linux-x64" ]]; then
+    echo -e "${RED}Error: this personal build only supports Linux x64 (found: $raw_os/$arch).${NC}"
+    echo -e "${MUTED}The CI workflow builds a single opencode-linux-x64 binary.${NC}"
+    exit 1
+fi
+
+INSTALL_DIR=$HOME/.opencode/bin
+mkdir -p "$INSTALL_DIR"
+
+url="https://github.com/ChristopheAwad/opencode/releases/download/personal-latest/opencode-linux-x64"
+
+echo -e "${MUTED}Downloading personal build:${NC} $url"
+tmp_file="${TMPDIR:-/tmp}/opencode-fork-download-$$"
+curl -fsSL -o "$tmp_file" "$url"
+chmod 755 "$tmp_file"
+mv "$tmp_file" "$INSTALL_DIR/opencode"
+echo -e "${MUTED}Installed to:${NC} $INSTALL_DIR/opencode"
+
+current_shell=$(basename "$SHELL")
+case $current_shell in
+    fish)
+        config_files="$HOME/.config/fish/config.fish"
+        path_command="fish_add_path $INSTALL_DIR"
+        ;;
+    *)
+        case $current_shell in
+            zsh) config_files="${ZDOTDIR:-$HOME}/.zshrc" ;;
+            *) config_files="$HOME/.bashrc $HOME/.profile" ;;
+        esac
+        path_command="export PATH=$INSTALL_DIR:\$PATH"
+        ;;
+esac
+
+if [[ "$no_modify_path" != "true" ]]; then
+    if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+        config_file=""
+        for file in $config_files; do
+            if [[ -f $file ]]; then
+                config_file=$file
+                break
+            fi
+        done
+        if [[ -n $config_file ]]; then
+            if ! grep -Fxq "$path_command" "$config_file"; then
+                echo -e "\n# opencode (personal fork)" >> "$config_file"
+                echo "$path_command" >> "$config_file"
+                echo -e "${MUTED}Added to PATH in:${NC} $config_file"
+                echo -e "${MUTED}Restart your shell or run:${NC} $path_command"
+            fi
+        else
+            echo -e "${MUTED}Add this to your shell config manually:${NC} $path_command"
+        fi
+    fi
+fi
+
+echo -e ""
+echo -e "${MUTED}Start the server with:${NC} opencode serve --hostname 0.0.0.0 --port 4096"
+echo -e ""
