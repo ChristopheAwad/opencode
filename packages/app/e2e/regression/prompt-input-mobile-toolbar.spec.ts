@@ -77,6 +77,9 @@ test("keeps send and reasoning effort visible in a narrow composer", async ({ pa
   const right = (box: NonNullable<typeof composerBox>) => box.x + box.width
   const left = (box: NonNullable<typeof composerBox>) => box.x
 
+  expect(left(modelBox!)).toBeGreaterThanOrEqual(left(composerBox!) - 1)
+  expect(left(variantBox!)).toBeGreaterThanOrEqual(left(composerBox!) - 1)
+  expect(left(submitBox!)).toBeGreaterThanOrEqual(left(composerBox!) - 1)
   expect(right(modelBox!)).toBeLessThanOrEqual(left(submitBox!) + 1)
   expect(right(variantBox!)).toBeLessThanOrEqual(left(submitBox!) + 1)
   expect(right(submitBox!)).toBeLessThanOrEqual(right(composerBox!) + 1)
