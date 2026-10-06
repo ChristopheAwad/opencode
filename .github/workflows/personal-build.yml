@@ -35,6 +35,8 @@ jobs:
           # channel defaults to the branch name and the binary creates an
           # empty opencode-<branch>.db instead.
           OPENCODE_CHANNEL: latest
+          # Stamp the web UI so a screenshot identifies the running bundle.
+          OPENCODE_BUILD_COMMIT: ${{ github.sha }}
         run: bun ./packages/opencode/script/build.ts --single
 
       - name: Publish to personal release

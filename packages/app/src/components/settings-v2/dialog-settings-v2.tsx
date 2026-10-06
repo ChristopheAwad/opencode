@@ -89,7 +89,10 @@ export const DialogSettings: Component<{
             </div>
             <div class="settings-v2-nav-footer">
               <span>{language.t("app.name.desktop")}</span>
-              <span>v{platform.version}</span>
+              <span>
+                v{platform.version}
+                {typeof __BUILD_COMMIT__ === "string" && __BUILD_COMMIT__ ? ` · ${__BUILD_COMMIT__.slice(0, 7)}` : ""}
+              </span>
             </div>
           </div>
         </TabsV2.List>

@@ -21,6 +21,9 @@ const sentry =
 
 export default defineConfig({
   plugins: [desktopPlugin, sentry] as any,
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(process.env.OPENCODE_BUILD_COMMIT ?? ""),
+  },
   server: {
     host: "0.0.0.0",
     allowedHosts: true,
