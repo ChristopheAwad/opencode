@@ -117,8 +117,10 @@ test("keeps send and reasoning effort visible in a narrow composer", async ({ pa
 test("shows more agent, model, and reasoning effort label text in a narrow composer", async ({ page }) => {
   const composer = await openNarrowComposer(page, "DeepSeek V4.1 Flash")
 
+  const agent = composer.getByRole("button", { name: "Choose agent" })
   const model = composer.locator('[data-action="prompt-model"]')
   const variant = composer.getByRole("button", { name: "Choose model variant" })
+  await expect(agent).toBeVisible()
   await expect(model).toBeVisible()
   await expect(variant).toBeVisible()
 
