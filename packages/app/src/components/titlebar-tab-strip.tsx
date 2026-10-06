@@ -259,6 +259,21 @@ export function TitlebarTabStrip(props: {
     props.onOverflowChange(scrollRef.scrollWidth > scrollRef.clientWidth)
   }
 
+  let lastScrolledKey: string | undefined
+
+  function scrollActiveIntoView() {
+    const current = props.currentTab()
+    if (!current) return
+    const key = tabKey(current)
+    if (key === lastScrolledKey) return
+    const slot = Array.from(listRef.querySelectorAll<HTMLElement>("[data-tab-key]")).find(
+      (element) => element.dataset.tabKey === key,
+    )
+    if (!slot) return
+    lastScrolledKey = key
+    slot.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" })
+  }
+
   createResizeObserver(
     () => [scrollRef, listRef],
     () => {
@@ -281,7 +296,9 @@ export function TitlebarTabStrip(props: {
   createEffect(() => {
     props.tabs.length
     visibleTabIds()
+    props.currentTab()
     refreshOverflow()
+    scrollActiveIntoView()
   })
 
   return (
