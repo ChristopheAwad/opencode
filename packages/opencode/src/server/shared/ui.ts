@@ -52,11 +52,23 @@ function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
 }
 
-function embeddedUIResponse(file: string, body: Uint8Array) {
+function isAssetPath(path: string) {
+  if (path.startsWith("assets/")) return true
+  const name = path.split("/").pop() ?? ""
+  return /\.[a-z0-9]+$/i.test(name) && !/\.html?$/i.test(name)
+}
+
+function embeddedUIResponse(key: string, file: string, body: Uint8Array) {
   const mime = FSUtil.mimeType(file)
-  const headers = new Headers({ "content-type": mime })
+  const headers = new Headers({ "content-type": mime, "x-content-type-options": "nosniff" })
   if (mime.startsWith("text/html")) {
     headers.set("content-security-policy", cspForHtml(new TextDecoder().decode(body)))
+    headers.set("cache-control", "no-store")
+    headers.set("pragma", "no-cache")
+  } else if (key.startsWith("assets/")) {
+    headers.set("cache-control", "public, max-age=31536000, immutable")
+  } else {
+    headers.set("cache-control", "no-cache")
   }
   return HttpServerResponse.raw(body, { headers })
 }
@@ -66,11 +78,12 @@ export function serveEmbeddedUIEffect(
   fs: FSUtil.Interface,
   embeddedWebUI: Record<string, string>,
 ) {
-  const file = embeddedWebUI[requestPath.replace(/^\//, "")] ?? embeddedWebUI["index.html"] ?? null
+  const key = requestPath.replace(/^\//, "")
+  const file = embeddedWebUI[key] ?? (isAssetPath(key) ? null : (embeddedWebUI["index.html"] ?? null))
   if (!file) return Effect.succeed(notFound())
 
   return fs.readFile(file).pipe(
-    Effect.map((body) => embeddedUIResponse(file, body)),
+    Effect.map((body) => embeddedUIResponse(key, file, body)),
     Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
   )
 }
