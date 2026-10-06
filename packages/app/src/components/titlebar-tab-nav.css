@@ -148,3 +148,10 @@
     transform: translateX(-50%);
   }
 }
+
+@media (max-width: 767px) {
+  [data-titlebar-tab-slot] {
+    /* Two tabs fill the strip; grow to max-w-56 when the bar is wide enough. */
+    flex: 1 0 calc(50% - 3px);
+  }
+}
