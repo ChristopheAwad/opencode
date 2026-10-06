@@ -502,7 +502,7 @@ function PromptInputV2ModelControl(props: {
       <TooltipV2
         placement="top"
         gutter={4}
-        class="min-w-0 shrink-[3]"
+        class="min-w-0 shrink-[3] @max-[440px]:max-w-[7.5rem]"
         value={
           <>
             {props.title}

@@ -356,6 +356,59 @@ describe("HttpApi UI fallback", () => {
     }),
   )
 
+  // The web UI shell must never be cached or a browser can keep serving an
+  // old bundle after the server is updated. Content-hashed assets are safe to
+  // cache forever because their filenames change with the content.
+  it.live("serves embedded UI html with no-store and hashed assets as immutable", () =>
+    Effect.gen(function* () {
+      const fs = yield* FSUtil.Service
+      const readFile = (path: string) => Effect.succeed(new TextEncoder().encode(path))
+      const embedded = {
+        "index.html": "/$bunfs/root/index.html",
+        "assets/app-abc123.js": "/$bunfs/root/assets/app-abc123.js",
+        "favicon.ico": "/$bunfs/root/favicon.ico",
+      }
+      const serve = (path: string) =>
+        serveEmbeddedUIEffect(path, { ...fs, readFile }, embedded).pipe(Effect.map(HttpServerResponse.toWeb))
+
+      const html = yield* serve("/")
+      expect(html.status).toBe(200)
+      expect(html.headers.get("cache-control")).toBe("no-store")
+      expect(html.headers.get("pragma")).toBe("no-cache")
+      expect(html.headers.get("x-content-type-options")).toBe("nosniff")
+
+      const asset = yield* serve("/assets/app-abc123.js")
+      expect(asset.status).toBe(200)
+      expect(asset.headers.get("cache-control")).toBe("public, max-age=31536000, immutable")
+      expect(asset.headers.get("x-content-type-options")).toBe("nosniff")
+
+      const icon = yield* serve("/favicon.ico")
+      expect(icon.status).toBe(200)
+      expect(icon.headers.get("cache-control")).toBe("no-cache")
+    }),
+  )
+
+  // Unknown routes fall back to the SPA shell, but missing asset files and the
+  // legacy service worker path must 404. Returning index.html for those keeps a
+  // stale client "working" on old chunk hashes and blocks service worker update
+  // checks, which is exactly what pinned phones to old bundles.
+  it.live("returns 404 for missing embedded assets instead of the SPA shell", () =>
+    Effect.gen(function* () {
+      const fs = yield* FSUtil.Service
+      const embedded = { "index.html": "/$bunfs/root/index.html" }
+      const readFile = (path: string) => Effect.succeed(new TextEncoder().encode(path))
+      const serve = (path: string) =>
+        serveEmbeddedUIEffect(path, { ...fs, readFile }, embedded).pipe(Effect.map(HttpServerResponse.toWeb))
+
+      expect((yield* serve("/assets/index-old123.js")).status).toBe(404)
+      expect((yield* serve("/sw.js")).status).toBe(404)
+
+      const route = yield* serve("/new-session")
+      expect(route.status).toBe(200)
+      expect(yield* responseText(route)).toBe("/$bunfs/root/index.html")
+    }),
+  )
+
   it.live("keeps matched API routes ahead of the UI fallback", () =>
     Effect.gen(function* () {
       const server = routeOrderingApp()
