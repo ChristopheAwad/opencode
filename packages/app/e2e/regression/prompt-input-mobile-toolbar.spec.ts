@@ -125,8 +125,8 @@ test("shows more agent, model, and reasoning effort label text in a narrow compo
   await expect(variant).toBeVisible()
 
   const ratios = await labelWidthRatios(page)
-  expect(ratios.agent).toBeGreaterThan(0.75)
-  expect(ratios.variant).toBeGreaterThan(0.75)
+  expect(ratios.agent).toBeGreaterThan(0.88)
+  expect(ratios.variant).toBeGreaterThan(0.88)
   expect(ratios.model).toBeGreaterThan(0.4)
-  expect(ratios.model).toBeLessThan(0.72)
+  expect(ratios.model).toBeLessThan(0.63)
 })
