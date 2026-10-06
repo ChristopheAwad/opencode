@@ -262,6 +262,7 @@ export function TitlebarTabStrip(props: {
   let lastScrolledKey: string | undefined
 
   function scrollActiveIntoView() {
+    if (!listRef) return
     const current = props.currentTab()
     if (!current) return
     const key = tabKey(current)
@@ -296,7 +297,6 @@ export function TitlebarTabStrip(props: {
   createEffect(() => {
     props.tabs.length
     visibleTabIds()
-    props.currentTab()
     refreshOverflow()
     scrollActiveIntoView()
   })

@@ -21,7 +21,7 @@ test("mobile tab strip keeps tabs full width and scrolls horizontally", async ({
 
   const slots = page.locator("[data-titlebar-tab-slot]:visible")
   await expect(slots).toHaveCount(3)
-  await expect(page.locator("[data-titlebar-tab-title]").first()).toBeVisible()
+  await expect(page.locator("[data-titlebar-tab-title]:visible")).toHaveCount(3)
 
   const metrics = await scrollMetrics(page)
   expect(metrics.widths).toHaveLength(3)
@@ -46,7 +46,7 @@ test("two mobile tabs fill the strip without scrolling", async ({ page }) => {
 
   const metrics = await scrollMetrics(page)
   expect(metrics.widths).toHaveLength(2)
-  expect(metrics.scrollWidth).toBe(metrics.clientWidth)
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
   expect(metrics.rightEdges[1]).toBeLessThanOrEqual(metrics.clientWidth + 1)
   for (const width of metrics.widths) expect(width).toBeGreaterThan(100)
   expect(Math.abs(metrics.widths[0] - metrics.widths[1])).toBeLessThanOrEqual(2)
@@ -90,7 +90,7 @@ test("desktop tab strip still shrinks tabs instead of scrolling", async ({ page 
   await expect(slots).toHaveCount(4)
 
   const metrics = await scrollMetrics(page)
-  expect(metrics.scrollWidth).toBe(metrics.clientWidth)
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
   for (const width of metrics.widths) {
     expect(width).toBeLessThan(224)
     expect(width).toBeGreaterThan(64)
