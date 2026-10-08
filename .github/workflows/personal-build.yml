@@ -100,11 +100,11 @@ jobs:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
           test -n "$ANDROID_DEBUG_KEYSTORE_BASE64"
-          mkdir -p ~/.android
-          echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/opencode-debug.keystore"
 
       - name: Assemble debug APK
         env:
+          ANDROID_DEBUG_KEYSTORE: ${{ runner.temp }}/opencode-debug.keystore
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew --no-daemon assembleDebug
