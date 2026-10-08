@@ -318,6 +318,22 @@ Test evidence (run from package directories):
 - `review-terminal-stacked.spec.ts` failed once in a 2-worker run and passes
   with 1 worker; treated as machine memory pressure.
 
+Phone feedback round 1 (2026-10-08, uncommitted fixes):
+1. Project toggle did not filter: the native bypass now applies only when no
+   project is selected (`native: native && !home.project.selected()`).
+2. Search did not filter the visible list: on native the search box now
+   filters the session list in place (single "Sessions" group) and shows the
+   no-results label; the desktop dropdown is kept for non-native.
+3. Agent selector was missing: restored in the native composer (variant stays
+   in the model panel).
+4. Model panel had no search: added "Search models" with a no-results state.
+5. Reasoning options were clipped: the panel is now scrollable
+   (`max-h-[70vh]`, list `max-h-[40vh]`).
+6. Model name was capped at 7.5rem on phones: the native button is now
+   `flex-1 max-w-none`, so the name uses the free space.
+- Tests: mobile-sessions 6, mobile-composer 9; full e2e 149 pass / 2
+  pre-existing fail; unit 763, browser 46, session-ui 88.
+
 Diff review:
 - Round 1 found 1 blocking issue (legacy-layout `mobileTabs` at
   `session.tsx:2273` missing the `!native` gate) plus nits. Fixed: the gate,

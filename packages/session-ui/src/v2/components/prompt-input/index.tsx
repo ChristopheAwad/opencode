@@ -217,7 +217,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onContext={props.controller.openContext}
               onShell={props.controller.openShell}
             />
-            <Show when={props.native ? undefined : view.agent} keyed>
+            <Show when={view.agent} keyed>
               {(control) => (
                 <PromptInputV2ConfiguredSelect
                   title={i18n.t("ui.promptInput.chooseAgent")}

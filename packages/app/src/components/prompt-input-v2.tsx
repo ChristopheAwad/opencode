@@ -7,7 +7,7 @@ import { Icon } from "@opencode-ai/ui/v2/icon"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
@@ -510,7 +510,7 @@ function PromptInputV2ModelControl(props: {
       <TooltipV2
         placement="top"
         gutter={4}
-        class="min-w-0 shrink-[3] @max-[440px]:max-w-[7.5rem]"
+        class={props.native ? "min-w-0 flex-1" : "min-w-0 shrink-[3] @max-[440px]:max-w-[7.5rem]"}
         value={
           <>
             {props.title}
@@ -564,7 +564,7 @@ function PromptInputV2ModelControl(props: {
               variant="ghost-muted"
               size="normal"
               style={{ height: "36px" }}
-              class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group @max-[440px]:!px-1.5 @max-[440px]:!gap-[3px]"
+              class="w-full min-w-0 max-w-none justify-start ![font-weight:440] group"
               classList={{ "animate-in fade-in": shouldAnimate() }}
               onClick={() =>
                 dialog.show(() => (
@@ -585,12 +585,15 @@ function PromptInputV2ModelControl(props: {
 
 function NativeModelPanel(props: { selection: PromptInputV2ComposerController["model"]["selection"] }) {
   const language = useLanguage()
-  const models = createMemo(() =>
-    props.selection
+  const [search, setSearch] = createSignal("")
+  const models = createMemo(() => {
+    const query = search().trim().toLowerCase()
+    return props.selection
       .list()
       .filter((item) => props.selection.visible({ modelID: item.id, providerID: item.provider.id }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  )
+      .filter((item) => !query || `${item.name} ${item.id} ${item.provider.name}`.toLowerCase().includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  })
   const isCurrent = (item: { id: string; provider: { id: string } }) => {
     const current = props.selection.current()
     return !!current && current.id === item.id && current.provider.id === item.provider.id
@@ -599,9 +602,20 @@ function NativeModelPanel(props: { selection: PromptInputV2ComposerController["m
   const currentVariant = () => props.selection.variant.current() ?? "default"
 
   return (
-    <div data-component="native-model-panel" class="flex flex-col gap-4">
-      <section class="flex flex-col gap-1">
-        <div class="max-h-[50vh] overflow-y-auto">
+    <div
+      data-component="native-model-panel"
+      class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto overscroll-contain"
+    >
+      <section class="flex flex-col gap-2">
+        <input
+          type="search"
+          value={search()}
+          onInput={(event) => setSearch(event.currentTarget.value)}
+          placeholder={language.t("dialog.model.search.placeholder")}
+          aria-label={language.t("dialog.model.search.placeholder")}
+          class="h-10 w-full shrink-0 rounded-md border border-border-weak-base bg-surface-panel px-3 text-14-regular text-text-strong outline-none placeholder:text-text-weak"
+        />
+        <div class="max-h-[40vh] overflow-y-auto">
           <For each={models()}>
             {(item) => (
               <button
@@ -617,6 +631,9 @@ function NativeModelPanel(props: { selection: PromptInputV2ComposerController["m
               </button>
             )}
           </For>
+          <Show when={models().length === 0}>
+            <p class="px-3 py-4 text-14-regular text-text-weak">{language.t("dialog.model.empty")}</p>
+          </Show>
         </div>
       </section>
       <Show when={variants().length > 1}>

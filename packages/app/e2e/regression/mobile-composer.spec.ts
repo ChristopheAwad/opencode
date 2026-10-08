@@ -7,7 +7,10 @@ import { expectAppVisible } from "../utils/waits"
 const directory = "/tmp/opencode-e2e-mobile-composer"
 const sessionID = "ses_mobile_composer"
 
-async function openSession(page: Page, input: { status?: Record<string, unknown>; native?: boolean } = {}) {
+async function openSession(
+  page: Page,
+  input: { status?: Record<string, unknown>; native?: boolean; modelName?: string; extraModels?: number } = {},
+) {
   if (input.native ?? true) await installNativeShell(page)
   await seedMobileServer(page, { directory })
   await mockMobileServer(page, {
@@ -38,7 +41,7 @@ async function openSession(page: Page, input: { status?: Record<string, unknown>
           id: "test-model",
           providerID: "anthropic",
           modelID: "test-model",
-          name: "Test Model",
+          name: input.modelName ?? "Test Model",
           family: "test",
           capabilities: { input: ["text"], output: ["text"], tools: true },
           cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
@@ -46,6 +49,18 @@ async function openSession(page: Page, input: { status?: Record<string, unknown>
           time: { released: Date.now() },
           variants: [{ id: "high" }],
         },
+        ...Array.from({ length: input.extraModels ?? 0 }, (_, index) => ({
+          id: `extra-model-${index}`,
+          providerID: "anthropic",
+          modelID: `extra-model-${index}`,
+          name: `Extra Model ${String(index).padStart(2, "0")}`,
+          family: "test",
+          capabilities: { input: ["text"], output: ["text"], tools: true },
+          cost: [{ input: 1, output: 2, cache: { read: 0.1, write: 0.2 } }],
+          limit: { context: 100_000, output: 4_000 },
+          time: { released: Date.now() },
+          variants: [{ id: "high" }],
+        })),
       ],
       default: { providerID: "anthropic", modelID: "test-model" },
     },
@@ -80,13 +95,23 @@ test.describe("native composer", () => {
     const submit = composer.locator('[data-action="prompt-submit"]')
     await expect(model).toBeVisible()
     await expect(submit).toBeVisible()
-    await expect(composer.getByRole("button", { name: "Choose agent" })).toHaveCount(0)
+    await expect(composer.getByRole("button", { name: "Choose agent" })).toBeVisible()
     await expect(composer.getByRole("button", { name: "Choose model variant" })).toHaveCount(0)
 
     const submitBox = await submit.boundingBox()
     expect(submitBox).not.toBeNull()
     expect(submitBox!.width).toBeGreaterThanOrEqual(36)
     expect(submitBox!.height).toBeGreaterThanOrEqual(36)
+  })
+
+  test("shows the full model name when space allows", async ({ page }) => {
+    const composer = await openSession(page, { modelName: "DeepSeek V4.1 Flash" })
+
+    const label = composer.locator('[data-action="prompt-model"] span.truncate')
+    await expect(label).toHaveCount(1)
+    await expect(label).toHaveText("DeepSeek V4.1 Flash")
+    const clipped = await label.evaluate((element) => element.scrollWidth - element.clientWidth)
+    expect(clipped).toBeLessThanOrEqual(1)
   })
 
   test("plain web keeps the desktop composer controls", async ({ page }) => {
@@ -124,6 +149,12 @@ test.describe("native composer", () => {
     await expect(panel).toBeVisible()
     await expect(panel.getByRole("button", { name: /Test Model/ })).toBeVisible()
 
+    const search = panel.getByPlaceholder("Search models")
+    await search.fill("Test")
+    await expect(panel.getByRole("button", { name: /Test Model/ })).toBeVisible()
+    await search.fill("no-such-model")
+    await expect(panel.getByText("No model results")).toBeVisible()
+
     const high = panel.locator('[data-action="native-variant-option"][data-variant="high"]')
     await expect(high).toBeVisible()
     await high.click()
@@ -131,6 +162,18 @@ test.describe("native composer", () => {
 
     await page.keyboard.press("Escape")
     await expect(panel).toBeHidden()
+  })
+
+  test("keeps reasoning options reachable with a long model list", async ({ page }) => {
+    const composer = await openSession(page, { extraModels: 25 })
+
+    await composer.locator('[data-action="prompt-model"][data-control-type="panel"]').click()
+
+    const panel = page.locator('[data-component="native-model-panel"]')
+    await expect(panel).toBeVisible()
+    const high = panel.locator('[data-action="native-variant-option"][data-variant="high"]')
+    await high.click()
+    await expect(high).toHaveAttribute("aria-pressed", "true")
   })
 
   test("sends typed text and turns into stop while working", async ({ page }) => {

@@ -15,7 +15,12 @@ export async function installNativeShell(page: Page) {
   })
 }
 
-export async function seedMobileServer(page: Page, input: { directory: string; projects?: string[] }) {
+export async function seedMobileServer(
+  page: Page,
+  input: { directory: string; projects?: string[]; selected?: string | null },
+) {
+  const directories = input.projects ?? [input.directory]
+  const selected = input.selected === undefined ? directories[0] : input.selected
   await page.addInitScript(
     (data) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
@@ -25,7 +30,7 @@ export async function seedMobileServer(page: Page, input: { directory: string; p
         JSON.stringify({
           list: [data.server],
           projects: { [data.server]: data.directories.map((worktree) => ({ worktree, expanded: true })) },
-          lastProject: data.directories[0] ? { [data.server]: data.directories[0] } : {},
+          lastProject: data.selected ? { [data.server]: data.selected } : {},
           recentlyClosed: {},
         }),
       )
@@ -33,7 +38,8 @@ export async function seedMobileServer(page: Page, input: { directory: string; p
     {
       server: MOBILE_SERVER_URL,
       defaultServerKey: DEFAULT_SERVER_KEY,
-      directories: input.projects ?? [input.directory],
+      directories,
+      selected: selected ?? null,
     },
   )
 }

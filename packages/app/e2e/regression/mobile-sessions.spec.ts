@@ -45,6 +45,59 @@ test.describe("native sessions first", () => {
     await expectAppVisible(page.locator('[data-component="mobile-nav"]'))
   })
 
+  test("filters the list when a project is selected", async ({ page }) => {
+    await installNativeShell(page)
+    const projectA = "/tmp/opencode-e2e-project-a"
+    const projectB = "/tmp/opencode-e2e-project-b"
+    await seedMobileServer(page, { directory: projectA, projects: [projectA, projectB], selected: null })
+    await mock(page, [
+      {
+        ...remoteSession,
+        id: "ses_project_a",
+        directory: projectA,
+        title: "Alpha session",
+        time: { created: 1, updated: 2 },
+      },
+      {
+        ...remoteSession,
+        id: "ses_project_b",
+        directory: projectB,
+        title: "Beta session",
+        time: { created: 1, updated: 1 },
+      },
+    ])
+    await page.goto("/")
+
+    const projectRow = page.locator('[data-component="home-project-row"]', { hasText: "opencode-e2e-project-a" })
+    await expect(page.locator('[data-component="home-session-row"]')).toHaveCount(2)
+    await projectRow.click()
+    await expect(page.locator('[data-component="home-session-row"]')).toHaveCount(1)
+    await expect(page.locator('[data-component="home-session-row"]')).toContainText("Alpha session")
+
+    await projectRow.click()
+    await expect(page.locator('[data-component="home-session-row"]')).toHaveCount(2)
+  })
+
+  test("search narrows the session list", async ({ page }) => {
+    await installNativeShell(page)
+    await seedMobileServer(page, { directory, projects: [], selected: null })
+    await mock(page, [
+      { ...remoteSession, id: "ses_alpha", title: "Alpha session", time: { created: 1, updated: 2 } },
+      { ...remoteSession, id: "ses_beta", title: "Beta session", time: { created: 1, updated: 1 } },
+    ])
+    await page.goto("/")
+
+    const search = page.getByPlaceholder("Search sessions")
+    await search.fill("Alpha")
+    await expect(page.locator('[data-component="home-session-row"]')).toHaveCount(1)
+    await expect(page.locator('[data-component="home-session-row"]')).toContainText("Alpha session")
+    await expect(page.locator('[data-component="home-session-search-panel"]')).toHaveCount(0)
+
+    await search.fill("no-such-session")
+    await expect(page.locator('[data-component="home-session-row"]')).toHaveCount(0)
+    await expect(page.getByText("No sessions found for no-such-session")).toBeVisible()
+  })
+
   test("plain web stays empty for sessions outside local projects", async ({ page }) => {
     await seedMobileServer(page, { directory, projects: [] })
     await mock(page, [remoteSession])

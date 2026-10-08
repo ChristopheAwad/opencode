@@ -1,3 +1,4 @@
+import { isNativeShell } from "@/utils/native-platform"
 import type { HomeScrollController } from "./home-scroll-controller"
 import type { HomeSessionSearchController } from "./home-session-search-controller"
 import type { HomeSessionsController } from "./home-sessions-controller"
@@ -8,16 +9,33 @@ export function HomeSessions(props: {
   search: HomeSessionSearchController
   scroll: HomeScrollController
 }) {
+  const native = isNativeShell()
+  const groups = () => {
+    if (!native) return props.sessions.data.groups()
+    const query = props.search.query.value().trim()
+    if (!query) return props.sessions.data.groups()
+    const records = props.search.result.list()
+    return [
+      {
+        id: "older" as const,
+        title: records.length
+          ? props.sessions.copy.language.t("home.sessions.search.sessions")
+          : props.search.result.noResultsLabel(),
+        sessions: records,
+      },
+    ]
+  }
+
   return (
     <HomeSessionsView
       language={props.sessions.copy.language}
-      groups={props.sessions.data.groups}
+      groups={groups}
       showProjectName={props.sessions.session.showProjectName}
       server={props.sessions.session.server}
       canCreateSession={props.sessions.session.canCreate}
       searchValue={props.search.query.value}
       searchPlaceholder={props.search.query.placeholder}
-      searchOpen={props.search.query.open}
+      searchOpen={native ? () => false : props.search.query.open}
       searchLoading={props.search.result.loading}
       searchResults={props.search.result.list}
       searchActive={props.search.result.active}
