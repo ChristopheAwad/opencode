@@ -9,8 +9,11 @@ import { createBrowserDraftStore } from "@/utils/draft-store"
 import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
 import { authFromToken } from "@/utils/server"
+import { isNativeShell } from "@/utils/native-platform"
+import { registerNativeBackButton } from "@/utils/native-back"
+import { MobileConnect } from "@/components/mobile-connect"
 import pkg from "../package.json"
-import { ServerConnection } from "./context/server"
+import { ServerConnection, ServerProvider } from "./context/server"
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
 
@@ -153,6 +156,27 @@ if (root instanceof HTMLElement) {
   void loadInitialLocale().then((locale) => {
     const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
     clearAuthToken()
+    const native = isNativeShell()
+    if (native) registerNativeBackButton()
+
+    // First run in the mobile shell: no stored server exists yet, so there is
+    // no origin to default to. Show the connect screen before the app boots.
+    if (native && !readDefaultServerUrl()) {
+      render(
+        () => (
+          <PlatformProvider value={platform}>
+            <AppBaseProviders locale={locale}>
+              <ServerProvider defaultServer={ServerConnection.Key.make("mobile:unconfigured")} servers={[]}>
+                <MobileConnect />
+              </ServerProvider>
+            </AppBaseProviders>
+          </PlatformProvider>
+        ),
+        root,
+      )
+      return
+    }
+
     const server: ServerConnection.Http = {
       type: "http",
       authToken: !!auth,
@@ -167,9 +191,9 @@ if (root instanceof HTMLElement) {
           <AppBaseProviders locale={locale}>
             <AppInterface
               defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-              canonicalLocalServer={ServerConnection.key(server)}
-              servers={[server]}
-              disableHealthCheck
+              canonicalLocalServer={native ? undefined : ServerConnection.key(server)}
+              servers={native ? [] : [server]}
+              disableHealthCheck={!native}
             />
           </AppBaseProviders>
         </PlatformProvider>

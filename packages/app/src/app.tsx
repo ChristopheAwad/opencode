@@ -51,6 +51,7 @@ import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
+import { isNativeShell } from "@/utils/native-platform"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider, useSettings } from "@/context/settings"
@@ -501,6 +502,8 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean; start
 function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key: ServerConnection.Key) => void }) {
   const language = useLanguage()
   const server = useServer()
+  const platform = usePlatform()
+  const native = isNativeShell()
   const others = () => server.list.filter((s) => ServerConnection.key(s) !== server.key)
   const name = createMemo(() => server.name || server.key)
   const serverToken = "\u0000server\u0000"
@@ -520,6 +523,18 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
         </p>
         <p class="mt-1 text-12-regular text-text-weak">{language.t("app.server.retrying")}</p>
       </div>
+      <Show when={native}>
+        <button
+          type="button"
+          class="px-4 py-2 rounded-md bg-surface-base hover:bg-surface-raised-base-hover transition-colors text-14-regular text-text-strong"
+          onClick={() => {
+            void platform.setDefaultServer?.(null)
+            window.location.reload()
+          }}
+        >
+          {language.t("command.server.switch")}
+        </button>
+      </Show>
       <Show when={others().length > 0}>
         <div class="flex flex-col gap-2 w-full max-w-sm">
           <span class="text-12-regular text-text-base text-center">{language.t("app.server.otherServers")}</span>

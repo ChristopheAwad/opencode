@@ -46,5 +46,62 @@ jobs:
           BIN=packages/opencode/dist/opencode-linux-x64/bin/opencode
           test -x "$BIN"
           cp "$BIN" ./opencode-linux-x64
-          gh release view personal-latest >/dev/null 2>&1 || gh release create personal-latest --title "Personal build" --notes "Unofficial fork build of insecure-combined (image-attachment + code-copy insecure-origin fixes). Not an official OpenCode release." --prerelease
+          gh release view personal-latest >/dev/null 2>&1 || gh release create personal-latest --title "Personal build" --notes "Unofficial fork build of insecure-combined (image-attachment + code-copy insecure-origin fixes, plus the Android debug app). Not an official OpenCode release." --prerelease
           gh release upload personal-latest ./opencode-linux-x64 --clobber
+
+  # Builds the debug APK for sideloading on a phone. The web UI is bundled so
+  # the app can connect to a LAN server over plain http.
+  android:
+    if: github.repository == 'ChristopheAwad/opencode'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "build-tools;35.0.0"
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('packages/mobile/android/**/*.gradle*', 'packages/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build web UI
+        env:
+          # Stamp the web UI so a screenshot identifies the running bundle.
+          OPENCODE_BUILD_COMMIT: ${{ github.sha }}
+        run: bun run build:web
+        working-directory: packages/mobile
+
+      - name: Sync Android project
+        run: bunx cap sync android
+        working-directory: packages/mobile
+
+      - name: Assemble debug APK
+        run: ./gradlew --no-daemon assembleDebug
+        working-directory: packages/mobile/android
+
+      - name: Publish APK to personal release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=packages/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          cp "$APK" ./opencode-mobile-debug.apk
+          gh release view personal-latest >/dev/null 2>&1 || gh release create personal-latest --title "Personal build" --notes "Unofficial fork build of insecure-combined (image-attachment + code-copy insecure-origin fixes, plus the Android debug app). Not an official OpenCode release." --prerelease
+          gh release upload personal-latest ./opencode-mobile-debug.apk --clobber

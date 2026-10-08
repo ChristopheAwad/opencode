@@ -21,9 +21,9 @@ import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
 
-const DEFAULT_USERNAME = "opencode"
+export const DEFAULT_USERNAME = "opencode"
 
-interface ServerFormProps {
+export interface ServerFormProps {
   value: string
   name: string
   username: string
@@ -48,7 +48,7 @@ function showRequestError(language: ReturnType<typeof useLanguage>, err: unknown
   })
 }
 
-function useDefaultServer() {
+export function useDefaultServer() {
   const language = useLanguage()
   const platform = usePlatform()
   const [defaultKey, defaultUrlActions] = createResource(
@@ -110,7 +110,7 @@ function useServerPreview() {
   return { previewStatus }
 }
 
-function ServerForm(props: ServerFormProps) {
+export function ServerForm(props: ServerFormProps) {
   const language = useLanguage()
   const keyDown = (event: KeyboardEvent) => {
     event.stopPropagation()

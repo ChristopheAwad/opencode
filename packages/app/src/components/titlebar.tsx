@@ -38,6 +38,7 @@ import { tabKey, useTabs } from "@/context/tabs"
 import type { PromptSession } from "@/context/prompt"
 import "./titlebar.css"
 import { newTabTooltipKeybind } from "./command-tooltip-keybind"
+import { ReconnectIndicatorV2 } from "./reconnect-indicator"
 import { normalizeSessionInfo } from "@/utils/session"
 
 const legacyTitlebarHeight = 40
@@ -430,6 +431,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                   />
                 </TooltipV2>
                 <div class="flex-1" />
+                <ReconnectIndicatorV2 />
                 <TitlebarV2Right state={v2RightState()} />
               </div>
             )

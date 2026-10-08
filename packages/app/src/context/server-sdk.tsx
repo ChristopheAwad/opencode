@@ -3,7 +3,7 @@ import type { Event } from "@opencode-ai/sdk/v2/client"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { type Accessor, batch, createMemo, createResource, onCleanup, onMount } from "solid-js"
+import { type Accessor, batch, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js"
 import { createApiForServer, createSdkForServer, type ServerApi } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
@@ -13,6 +13,12 @@ import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
+import {
+  createReconnectPolicy,
+  defaultWakeSubscription,
+  waitForRetry,
+  type WakeSubscription,
+} from "@/utils/reconnect"
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -165,6 +171,13 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () 
 }
 
 type ServerEventEmitter = ReturnType<typeof createGlobalEmitter<{ [key: string]: ServerEvent }>>
+
+export type StreamState = {
+  state: "connecting" | "live" | "retry"
+  attempt: number
+  nextDelayMs?: number
+}
+
 type ServerSDKBase = {
   server: ServerConnection.Any
   scope: ServerScope
@@ -174,6 +187,8 @@ type ServerSDKBase = {
   client: ReturnType<typeof createSdkForServer>
   api: CompatibleApi
   currentApi: ServerApi
+  stream: Accessor<StreamState>
+  retryNow: () => void
   event: {
     on: ServerEventEmitter["on"]
     listen: ServerEventEmitter["listen"]
@@ -214,10 +229,22 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     [key: string]: ServerEvent
   }>()
 
+  const policy = createReconnectPolicy()
+  const [stream, setStream] = createSignal<StreamState>({ state: "connecting", attempt: 0 })
+  let wakeRetry: (() => void) | undefined
+  const subscribeRetry: WakeSubscription = (onWake) => {
+    const dispose = defaultWakeSubscription(onWake)
+    wakeRetry = onWake
+    return () => {
+      if (wakeRetry === onWake) wakeRetry = undefined
+      dispose()
+    }
+  }
+  const retryNow = () => wakeRetry?.()
+
   type Queued = QueuedServerEvent
   const FLUSH_FRAME_MS = 16
   const STREAM_YIELD_MS = 8
-  const RECONNECT_DELAY_MS = 250
 
   let queue: Queued[] = []
   let buffer: Queued[] = []
@@ -271,6 +298,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           attempt?.abort()
         }
         abort.signal.addEventListener("abort", onAbort)
+        setStream({ state: "connecting", attempt: 0 })
+        let healthy = false
         try {
           const kind = await protocol
           const events =
@@ -279,6 +308,11 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
               : eventApi.event.subscribe({ signal: attempt.signal })
           let yielded = Date.now()
           for await (const event of events) {
+            if (!healthy) {
+              healthy = true
+              policy.reset()
+              setStream({ state: "live", attempt: 0 })
+            }
             streamErrorLogged = false
             const legacy = "payload" in event
             if (legacy && event.payload.type === "sync") continue
@@ -305,7 +339,9 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
 
         if (abort.signal.aborted || !started || generation !== active) return
-        await wait(RECONNECT_DELAY_MS)
+        const delay = policy.next()
+        setStream({ state: "retry", attempt: policy.attempts(), nextDelayMs: delay })
+        await waitForRetry(delay, { signal: abort.signal, subscribe: subscribeRetry })
       }
     })().finally(() => {
       if (run !== current) return
@@ -357,6 +393,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     client: sdk,
     api,
     currentApi,
+    stream,
+    retryNow,
     event: {
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
