@@ -78,6 +78,18 @@ The CI build sets `OPENCODE_CHANNEL=latest`, so the fork shares the main
 ONE server at a time. Two servers writing to the same database file can
 lock or corrupt it. Stop one before starting the other.
 
+## Android APK signing
+
+- CI signs the APK with one stable debug key stored in the repository secret
+  `ANDROID_DEBUG_KEYSTORE_BASE64`. Never delete or rotate it: Android rejects
+  updates when the signing key changes.
+- CI sets `ANDROID_VERSION_CODE` to the workflow run number, so each build is
+  newer than the last. A `Verify APK signature` step fails the job if the
+  stable key was not used.
+- One-time transition: APKs published before 2026-10-08 used a random key
+  generated fresh on each runner. The first install of a stable-key APK needs
+  a full uninstall. After that, updates install over the app.
+
 ## CI rebuilds
 
 Pushing `insecure-combined` triggers `.github/workflows/personal-build.yml`:

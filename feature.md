@@ -7,18 +7,21 @@ bottom before touching code.
 ## Status
 
 - R1 foundation: shipped to the branch and to the phone (see commits below).
-- M6b Wave A (W1-W4): IMPLEMENTED, reviewed, and pushed to
-  `insecure-combined`. All typechecks, unit (763), browser (46), session-ui
-  (88), CORS (10), and e2e suites pass except two PRE-EXISTING tab-strip
-  failures that also fail at HEAD without these changes. CI builds the APK;
+- M6b Wave A (W1-W4): pushed in `eaf86fd88b`; phone feedback round 1 fixed
+  and pushed in `b079d7c1c9`. All typechecks, unit (763), browser (46),
+  session-ui (88), CORS (10), and e2e suites pass except two PRE-EXISTING
+  tab-strip failures that also fail at HEAD without these changes. Second
   phone check pending. See "Wave A delivery" below.
 - `project-brief.md` does not exist on any branch of this fork (checked
   `git log --all`), so reviews validate against `roadmap.md`,
   `PERSONAL-FORK.md`, `packages/app/AGENTS.md`, and the code instead. Treat
   `roadmap.md` as the product authority for this fork.
-- Uncommitted local change: `packages/opencode/test/server/httpapi-cors.test.ts`
-  gained `allows Capacitor WebView origins on the health endpoint` (verified,
-  4 pass). It must ride along with the next commit.
+- Uncommitted local change: Android update signing fix. CI used a fresh random
+  debug key on every run, so the phone rejected updates. The workflow now
+  restores one stable debug keystore from the `ANDROID_DEBUG_KEYSTORE_BASE64`
+  repository secret, sets `ANDROID_VERSION_CODE` from the run number, and
+  verifies the APK signature. See `PERSONAL-FORK.md`. One more uninstall is
+  needed to move the phone to the stable key.
 - `.husky/pre-push` has a pre-existing local edit (`TURBO_CONCURRENCY=2`);
   never stage it.
 
@@ -30,11 +33,9 @@ bottom before touching code.
 3. Never commit or push without explicit user approval. The pre-push hook
    OOMs on this 5.3 GB machine; every push so far used `--no-verify` with
    explicit user approval.
-4. Wave A is implemented and tested. Next: diff review gate, then user
-   approval, then commit/push with explicit approval.
-5. Before screenshots: `/tmp/opencode/mobile-home.png`,
-   `/tmp/opencode/mobile-session.png`. After: `mobile-after-home.png`,
-   `mobile-after-session.png`, `mobile-web-after-home.png` (all 390x844).
+4. Wave A and its phone-feedback fixes are pushed. Next: push the Android
+   signing fix, then the second phone check.
+5. Screenshots: `screenshots/wave-a/` (before/after, 390x844).
 
 ## What is live today
 

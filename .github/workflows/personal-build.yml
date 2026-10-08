@@ -92,9 +92,33 @@ jobs:
         run: bun run sync
         working-directory: packages/mobile
 
+      # The runner's auto-generated debug keystore changes on every run, which
+      # makes Android reject updates over the installed app. Use one stable
+      # debug key stored as a repository secret instead.
+      - name: Restore Android debug keystore
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_DEBUG_KEYSTORE_BASE64"
+          mkdir -p ~/.android
+          echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+
       - name: Assemble debug APK
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew --no-daemon assembleDebug
         working-directory: packages/mobile/android
+
+      # Fails loudly if the build did not pick up the stable debug key, so a
+      # silently re-keyed APK never reaches the phone.
+      - name: Verify APK signature uses the stable debug key
+        run: |
+          APK=packages/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          APKSIGNER=$(find "$SDK_ROOT/build-tools" -maxdepth 2 -name apksigner -type f | sort | tail -1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | grep -qi "14da75353645abf5d51a4dc77b2611365ee99e10ad1af94b10f015553efcaade"
 
       - name: Publish APK to personal release
         env:
