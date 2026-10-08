@@ -65,12 +65,16 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
-
       - name: Install Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "build-tools;35.0.0"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER=$(command -v sdkmanager || true)
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -maxdepth 3 -name sdkmanager -type f 2>/dev/null | sort | tail -1)
+          fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "build-tools;35.0.0"
 
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -81,15 +85,11 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Build web UI
+      - name: Build web UI and sync Android project
         env:
           # Stamp the web UI so a screenshot identifies the running bundle.
           OPENCODE_BUILD_COMMIT: ${{ github.sha }}
-        run: bun run build:web
-        working-directory: packages/mobile
-
-      - name: Sync Android project
-        run: bunx cap sync android
+        run: bun run sync
         working-directory: packages/mobile
 
       - name: Assemble debug APK
