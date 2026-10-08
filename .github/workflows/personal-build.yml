@@ -115,10 +115,14 @@ jobs:
       - name: Verify APK signature uses the stable debug key
         run: |
           APK=packages/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          APKSIGNER=$(find "$SDK_ROOT/build-tools" -maxdepth 2 -name apksigner -type f | sort | tail -1)
+          APKSIGNER=$(find "$SDK_ROOT" -name apksigner 2>/dev/null | sort | tail -1)
+          echo "SDK_ROOT=$SDK_ROOT"
+          echo "APKSIGNER=$APKSIGNER"
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --print-certs "$APK" | grep -qi "14da75353645abf5d51a4dc77b2611365ee99e10ad1af94b10f015553efcaade"
+          "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/apk-certs.txt
+          grep -qi "14da75353645abf5d51a4dc77b2611365ee99e10ad1af94b10f015553efcaade" /tmp/apk-certs.txt
 
       - name: Publish APK to personal release
         env:
