@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { hasCustomAgent, resolveAgent } from "./local-agent"
+import { agentControlVisible, hasCustomAgent, resolveAgent } from "./local-agent"
 
 describe("hasCustomAgent", () => {
   test("detects explicitly custom agents", () => {
@@ -8,6 +8,21 @@ describe("hasCustomAgent", () => {
 
   test("ignores built-in and unclassified agents", () => {
     expect(hasCustomAgent([{ native: true }, {}])).toBe(false)
+  })
+})
+
+describe("agentControlVisible", () => {
+  test("shows on native even when the preference is off", () => {
+    expect(agentControlVisible({ configured: false, native: true, options: 1 })).toBe(true)
+  })
+
+  test("honors the preference on web", () => {
+    expect(agentControlVisible({ configured: false, native: false, options: 1 })).toBe(false)
+    expect(agentControlVisible({ configured: true, native: false, options: 1 })).toBe(true)
+  })
+
+  test("hides when there are no agents to choose", () => {
+    expect(agentControlVisible({ configured: true, native: true, options: 0 })).toBe(false)
   })
 })
 

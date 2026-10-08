@@ -19,6 +19,7 @@ import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/f
 import { useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { agentControlVisible } from "@/context/local-agent"
 import { useLayout } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { type ImageAttachmentPart, usePrompt } from "@/context/prompt"
@@ -94,6 +95,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const permission = usePermission()
   const language = useLanguage()
   const platform = usePlatform()
+  const native = isNativeShell()
   const prompt = props.state ?? usePrompt()
   let editor: HTMLDivElement | undefined
 
@@ -390,7 +392,11 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     view: {
       placeholder: designPlaceholder,
       get agent() {
-        return props.controls.agents.visible && props.controls.agents.options.length > 0
+        return agentControlVisible({
+          configured: props.controls.agents.visible,
+          native,
+          options: props.controls.agents.options.length,
+        })
           ? {
               options: () => props.controls.agents.options.map((name) => ({ id: name, label: name })),
               current: () => props.controls.agents.current,

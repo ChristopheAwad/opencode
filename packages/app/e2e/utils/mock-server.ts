@@ -48,7 +48,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     },
     "/project": [config.project],
     "/project/current": config.project,
-    "/agent": [{ name: "build", mode: "primary" }],
+    "/agent": [{ name: "build", mode: "primary", native: true }],
     "/vcs": { branch: "main", default_branch: "main" },
     "/session": config.sessions,
   }
@@ -143,6 +143,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
             name: "Build",
             mode: "primary",
             hidden: false,
+            native: true,
             request: { settings: {}, headers: {}, body: {} },
             permissions: [],
           },
