@@ -40,6 +40,7 @@ import { showToast } from "@/utils/toast"
 import { base64Encode, checksum } from "@opencode-ai/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
+import { MobileSessionHeader } from "@/components/mobile-session-header"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
@@ -96,6 +97,7 @@ import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
+import { isNativeShell } from "@/utils/native-platform"
 import { Persist, persisted } from "@/utils/persist"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { formatServerError, isLocalSessionNotFoundError, isSessionNotFoundError } from "@/utils/server-errors"
@@ -375,6 +377,7 @@ export default function Page() {
   const reviewFile = () => view().review.file()
   const sessionOwnership = createSessionOwnership(sessionKey)
   const newSessionDesign = createMemo(() => settings.general.newLayoutDesigns())
+  const native = isNativeShell()
 
   createEffect(() => {
     if (!prompt.ready()) return
@@ -2014,6 +2017,11 @@ export default function Page() {
 
   useUsageExceededDialogs()
 
+  const mobileChangesLabel = () =>
+    hasReview()
+      ? language.t("session.review.filesChanged", { count: reviewCount() })
+      : language.t("session.review.change.other")
+
   const mobileTabs = (compact = false, bottom = false) => (
     <Tabs value={store.mobileTab} class="h-auto">
       <Tabs.List
@@ -2042,9 +2050,7 @@ export default function Page() {
           classes={{ button: compact ? "w-full !py-2" : "w-full" }}
           onClick={() => setStore("mobileTab", "changes")}
         >
-          {hasReview()
-            ? language.t("session.review.filesChanged", { count: reviewCount() })
-            : language.t("session.review.change.other")}
+          {mobileChangesLabel()}
         </Tabs.Trigger>
       </Tabs.List>
     </Tabs>
@@ -2061,7 +2067,9 @@ export default function Page() {
   const sessionPanelContent = () => (
     <>
       {sessionSync() ?? ""}
-      <Show when={!isDesktop() && !!params.id && settings.general.newLayoutDesigns() && !mobileTabsBottom()}>
+      <Show
+        when={!isDesktop() && !native && !!params.id && settings.general.newLayoutDesigns() && !mobileTabsBottom()}
+      >
         {mobileTabs(true)}
       </Show>
       <div class="flex-1 min-h-0 overflow-hidden">
@@ -2242,13 +2250,19 @@ export default function Page() {
           )
         }}
       </Show>
-      <Show when={!!params.id && mobileTabsBottom()}>{mobileTabs(true, true)}</Show>
+      <Show when={!native && !!params.id && mobileTabsBottom()}>{mobileTabs(true, true)}</Show>
     </>
   )
 
   return (
     <SessionRouteFrame>
-      <SessionHeader />
+      <Show when={native && newSessionDesign()} fallback={<SessionHeader />}>
+        <MobileSessionHeader
+          active={store.mobileTab}
+          changesLabel={mobileChangesLabel()}
+          onSelect={(tab) => setStore("mobileTab", tab)}
+        />
+      </Show>
       <div
         ref={panelRow}
         class="flex-1 min-h-0 flex flex-col md:flex-row"
@@ -2256,7 +2270,9 @@ export default function Page() {
           "gap-2 p-2": settings.general.newLayoutDesigns(),
         }}
       >
-        <Show when={!isDesktop() && !!params.id && !settings.general.newLayoutDesigns()}>{mobileTabs()}</Show>
+        <Show when={!isDesktop() && !native && !!params.id && !settings.general.newLayoutDesigns()}>
+          {mobileTabs()}
+        </Show>
 
         <div
           classList={{

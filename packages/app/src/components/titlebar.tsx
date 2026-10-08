@@ -62,7 +62,11 @@ export function useTitlebarRightMount() {
   return mount
 }
 
-export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visible: boolean; toggle: () => void } }) {
+export function Titlebar(props: {
+  update?: TitlebarUpdate
+  debugTools?: { visible: boolean; toggle: () => void }
+  native?: boolean
+}) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
@@ -179,6 +183,9 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
         "order-last": bottom(),
       }}
       style={{
+        // Native mobile shell renders its own chrome; hide the header visually
+        // while its commands, effects, and portal mounts stay alive.
+        display: props.native ? "none" : undefined,
         "min-height": minHeight(),
         // Keep native macOS traffic lights clear even when the desktop window is narrow.
         "padding-left": macTrafficLights() ? `${macTrafficLightsBaseWidth / zoom()}px` : 0,

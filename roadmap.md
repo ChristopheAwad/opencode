@@ -14,13 +14,9 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Depends on: none
 - Files: `packages/mobile/` (new), `packages/app/src/entry.tsx`, `packages/app/src/utils/` (new helpers), `packages/app/src/context/server-sdk.tsx`, `packages/app/src/pages/`, `packages/app/src/components/`, `packages/server/src/cors.ts`, `packages/opencode/test/server/`, `.github/workflows/personal-build.yml` (android job)
 - Goal: an installable Android app that connects to a self-hosted opencode server over LAN `http` (enter IP, optional password), resumes reliably after sleep and network loss, and shows session status at a glance.
-- Scope:
-  - Capacitor Android shell that bundles the `packages/app` build.
-  - First-run connect screen: server URL + optional username/password, with clear error states.
-  - Reconnect supervisor: jittered exponential backoff, wake on `online` and on foreground, reconnect resync.
-  - CORS allowance for the WebView app origin.
-  - Mobile layout pass: safe areas, Android back button, sessions/status access, connection indicator.
-- Out of scope: push notifications, iOS, git/PR workflow buttons, durable event replay (R2).
+- Shipped so far: Capacitor Android shell, CI APK, first-run connect screen, reconnect supervisor and chip, Android back button, CORS for WebView origins (commits `995e7d8757`, `fd7b0b68e9`).
+- Remaining scope: **M6b Wave A** in `feature.md` — W1 bottom navigation + back, W2 sessions-first list with no project setup, W3 compact session header, W4 composer redesign.
+- Out of scope: push notifications, iOS, git/PR workflow buttons, durable event replay (R2), mobile shell polish (R3).
 
 ## R2 — opencode mobile app: parity and resume hardening
 
@@ -38,7 +34,19 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
   - iOS platform from the same Capacitor package.
 - Out of scope: push notifications, git/PR workflow buttons.
 
+## R3 — opencode mobile app: mobile shell polish
+
+- Status: planned
+- Tier: 2
+- Effort: L
+- Depends on: R1
+- Files: `packages/app/src/components/`, `packages/app/src/pages/`, `packages/app/src/utils/`, `packages/mobile/` (`@capacitor/haptics`), `packages/app/e2e/`
+- Goal: finish the native-feel shell after Wave A lands on the phone.
+- Scope: **M6b Waves B and C** in `feature.md` — W5 mobile sheets, W6 touch targets and long-press, W7 gestures and haptics, W8 timeline performance (measure first; targeted fixes only).
+- Out of scope: iOS, push notifications, true native rewrite.
+
 ## Implementation order
 
-1. R1 (active).
-2. R2 after R1 ships.
+1. R1 (active): M6b Wave A.
+2. R3: M6b Waves B and C after Wave A is verified on the phone.
+3. R2 after R3 ships.

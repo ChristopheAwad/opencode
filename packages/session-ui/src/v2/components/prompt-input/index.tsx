@@ -44,6 +44,7 @@ export type PromptInputV2Props = {
   variantControlVisible?: boolean
   attachKeybind?: string[]
   attachShortcut?: string
+  native?: boolean
 }
 
 export function PromptInputV2(props: PromptInputV2Props) {
@@ -195,7 +196,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </Show>
         </div>
 
-        <div class="flex h-11 items-center px-2">
+        <div class="flex items-center px-2" classList={{ "h-11": !props.native, "h-12": !!props.native }}>
           <div
             class="flex min-w-0 flex-1 items-center gap-1 @max-[440px]:gap-0.5"
             aria-hidden={state.mode === "shell"}
@@ -216,7 +217,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onContext={props.controller.openContext}
               onShell={props.controller.openShell}
             />
-            <Show when={view.agent} keyed>
+            <Show when={props.native ? undefined : view.agent} keyed>
               {(control) => (
                 <PromptInputV2ConfiguredSelect
                   title={i18n.t("ui.promptInput.chooseAgent")}
@@ -256,6 +257,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </div>
           <PromptInputV2SubmitButton
             mode={state.mode}
+            native={props.native}
             stopping={view.submit.stopping()}
             disabled={!props.controller.canSubmit()}
             sendLabel={i18n.t("ui.promptInput.send")}
@@ -673,6 +675,7 @@ export function PromptInputV2Popover(props: {
 
 export function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
+  native?: boolean
   stopping: boolean
   disabled: boolean
   sendLabel: string
@@ -694,7 +697,8 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-7 shrink-0 rounded-md p-[6px] text-v2-icon-icon-muted shadow-[var(--v2-elevation-button-contrast)] disabled:opacity-50"
+        class="shrink-0 rounded-md p-[6px] text-v2-icon-icon-muted shadow-[var(--v2-elevation-button-contrast)] disabled:opacity-50"
+        classList={{ "size-9": !!props.native, "size-7": !props.native }}
         style={{
           "background-image":
             "linear-gradient(180deg,var(--v2-alpha-light-20) 0%,var(--v2-alpha-light-0) 100%),linear-gradient(90deg,var(--v2-background-bg-contrast) 0%,var(--v2-background-bg-contrast) 100%)",

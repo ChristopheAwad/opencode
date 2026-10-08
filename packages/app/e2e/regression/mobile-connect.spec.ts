@@ -82,7 +82,7 @@ test.describe("mobile first-run connect", () => {
     await page.getByRole("button", { name: "Connect" }).click()
 
     await expect(page.getByRole("heading", { name: "Add server" })).toBeHidden()
-    await expect(page.locator('[data-slot="titlebar-v2"]')).toBeVisible()
+    await expect(page.locator('[data-component="mobile-nav"]')).toBeVisible()
     expect(await page.evaluate((key) => localStorage.getItem(key), defaultServerKey)).toBe("http://127.0.0.1:4096")
   })
 
@@ -95,7 +95,7 @@ test.describe("mobile first-run connect", () => {
     await mobileMock(page)
     await page.goto("/")
 
-    await expect(page.locator('[data-slot="titlebar-v2"]')).toBeVisible()
+    await expect(page.locator('[data-component="mobile-nav"]')).toBeVisible()
     await expect(page.getByRole("heading", { name: "Add server" })).toBeHidden()
   })
 

@@ -6,6 +6,11 @@ const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mc
 export interface MockServerConfig {
   protocol?: "v1" | "v2"
   provider: unknown | (() => unknown)
+  providerV2?: {
+    providers: Array<Record<string, unknown> & { id: string; name: string }>
+    models?: Array<Record<string, unknown> & { id: string; providerID: string; name: string }>
+    default?: { providerID: string; modelID: string } | null
+  }
   integrationMethods?: Record<string, unknown[]>
   onConnectKey?: (input: { integrationID: string; body: unknown }) => void
   onInstanceDispose?: () => void
@@ -79,6 +84,15 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: true })
     if (path === "/provider")
       return json(route, typeof config.provider === "function" ? config.provider() : config.provider)
+    if (path === "/api/provider" && config.providerV2)
+      return json(route, {
+        location: location(config),
+        data: config.providerV2.providers.map((provider) => ({ settings: {}, ...provider })),
+      })
+    if (path === "/api/model" && config.providerV2)
+      return json(route, { location: location(config), data: config.providerV2.models ?? [] })
+    if (path === "/api/model/default" && config.providerV2)
+      return json(route, { location: location(config), data: config.providerV2.default ?? null })
     if (path === "/provider/auth") return json(route, config.integrationMethods ?? {})
     const legacyAuth = path.match(/^\/auth\/([^/]+)$/)?.[1]
     if (legacyAuth && route.request().method() === "PUT") {

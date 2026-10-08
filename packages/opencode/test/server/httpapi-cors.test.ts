@@ -60,6 +60,22 @@ describe("HttpApi CORS", () => {
     }),
   )
 
+  // The Capacitor WebView sends these origins on every API request. Without an
+  // allow header the phone shows "could not connect" while a browser works.
+  it.live("allows Capacitor WebView origins on the health endpoint", () =>
+    Effect.gen(function* () {
+      for (const origin of ["http://localhost", "https://localhost", "capacitor://localhost"]) {
+        const response = yield* HttpClientRequest.get("/api/health").pipe(
+          HttpClientRequest.setHeaders({ origin }),
+          HttpClient.execute,
+        )
+
+        expect(response.status).toBe(200)
+        expect(response.headers["access-control-allow-origin"]).toBe(origin)
+      }
+    }),
+  )
+
   it.live("adds CORS headers to unauthorized responses", () =>
     Effect.gen(function* () {
       const handler = HttpRouter.toWebHandler(

@@ -1,12 +1,13 @@
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@opencode-ai/ui/dialog"
 import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { Icon } from "@opencode-ai/ui/v2/icon"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, on, Show } from "solid-js"
+import { createEffect, createMemo, For, on, Show } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
@@ -25,6 +26,7 @@ import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { isNativeShell } from "@/utils/native-platform"
 import { showToast } from "@/utils/toast"
 import { PromptInputV2, type PromptInputV2Suggestion } from "@opencode-ai/session-ui/v2/prompt-input"
 import {
@@ -48,6 +50,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const dialog = useDialog()
   const command = useCommand()
   const language = useLanguage()
+  const native = isNativeShell()
 
   return (
     <div class="flex flex-col gap-3">
@@ -55,13 +58,15 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         controller={props.controller}
         borderUnderlay={props.borderUnderlay}
         class={props.class}
-        variantControlVisible={!props.controller.model.loading}
+        native={native}
+        variantControlVisible={!props.controller.model.loading && !native}
         attachKeybind={command.keybindParts("file.attach")}
         attachShortcut={command.keybind("file.attach")}
         modelControl={
           <PromptInputV2ModelControl
             loading={props.controller.model.loading}
             paid={props.controller.model.paid}
+            native={native}
             title={language.t("command.model.choose")}
             keybind={command.keybindParts("model.choose")}
             model={props.controller.model.selection}
@@ -471,6 +476,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
 function PromptInputV2ModelControl(props: {
   loading: boolean
   paid: boolean
+  native?: boolean
   title: string
   keybind: string[]
   model: PromptInputV2ComposerController["model"]["selection"]
@@ -479,6 +485,8 @@ function PromptInputV2ModelControl(props: {
   onClose: () => void
   onUnpaidClick: () => void
 }) {
+  const dialog = useDialog()
+  const language = useLanguage()
   const shouldAnimate = createMemo<boolean>((previous) => previous ?? props.loading)
   const content = () => (
     <>
@@ -527,27 +535,113 @@ function PromptInputV2ModelControl(props: {
             </ButtonV2>
           }
         >
-          <ModelSelectorPopoverV2
-            model={props.model}
-            trigger={(triggerProps) => (
-              <ButtonV2
-                {...triggerProps}
-                variant="ghost-muted"
-                size="normal"
-                style={{ height: "28px" }}
-                class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group @max-[440px]:!px-1.5 @max-[440px]:!gap-[3px]"
-                classList={{ "animate-in fade-in": shouldAnimate() }}
-                data-action="prompt-model"
-                data-control-type="popover"
-              >
-                {content()}
-              </ButtonV2>
-            )}
-            onClose={props.onClose}
-          />
+          <Show
+            when={props.native}
+            fallback={
+              <ModelSelectorPopoverV2
+                model={props.model}
+                trigger={(triggerProps) => (
+                  <ButtonV2
+                    {...triggerProps}
+                    variant="ghost-muted"
+                    size="normal"
+                    style={{ height: "28px" }}
+                    class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group @max-[440px]:!px-1.5 @max-[440px]:!gap-[3px]"
+                    classList={{ "animate-in fade-in": shouldAnimate() }}
+                    data-action="prompt-model"
+                    data-control-type="popover"
+                  >
+                    {content()}
+                  </ButtonV2>
+                )}
+                onClose={props.onClose}
+              />
+            }
+          >
+            <ButtonV2
+              data-action="prompt-model"
+              data-control-type="panel"
+              variant="ghost-muted"
+              size="normal"
+              style={{ height: "36px" }}
+              class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group @max-[440px]:!px-1.5 @max-[440px]:!gap-[3px]"
+              classList={{ "animate-in fade-in": shouldAnimate() }}
+              onClick={() =>
+                dialog.show(() => (
+                  <Dialog title={language.t("dialog.model.select.title")}>
+                    <NativeModelPanel selection={props.model} />
+                  </Dialog>
+                ))
+              }
+            >
+              {content()}
+            </ButtonV2>
+          </Show>
         </Show>
       </TooltipV2>
     </Show>
+  )
+}
+
+function NativeModelPanel(props: { selection: PromptInputV2ComposerController["model"]["selection"] }) {
+  const language = useLanguage()
+  const models = createMemo(() =>
+    props.selection
+      .list()
+      .filter((item) => props.selection.visible({ modelID: item.id, providerID: item.provider.id }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  )
+  const isCurrent = (item: { id: string; provider: { id: string } }) => {
+    const current = props.selection.current()
+    return !!current && current.id === item.id && current.provider.id === item.provider.id
+  }
+  const variants = createMemo(() => ["default", ...props.selection.variant.list()])
+  const currentVariant = () => props.selection.variant.current() ?? "default"
+
+  return (
+    <div data-component="native-model-panel" class="flex flex-col gap-4">
+      <section class="flex flex-col gap-1">
+        <div class="max-h-[50vh] overflow-y-auto">
+          <For each={models()}>
+            {(item) => (
+              <button
+                type="button"
+                data-action="native-model-option"
+                aria-pressed={isCurrent(item)}
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-3 text-left text-14-regular text-text-strong hover:bg-surface-raised-base-hover"
+                classList={{ "bg-surface-raised-base-hover": isCurrent(item) }}
+                onClick={() => props.selection.set({ modelID: item.id, providerID: item.provider.id }, { recent: true })}
+              >
+                <span class="min-w-0 truncate">{item.name}</span>
+                <span class="shrink-0 text-12-regular text-text-weak">{item.provider.name}</span>
+              </button>
+            )}
+          </For>
+        </div>
+      </section>
+      <Show when={variants().length > 1}>
+        <section class="flex flex-col gap-1">
+          <div class="px-1 text-12-regular text-text-weak">{language.t("command.model.variant.cycle")}</div>
+          <div class="flex flex-wrap gap-1">
+            <For each={variants()}>
+              {(value) => (
+                <button
+                  type="button"
+                  data-action="native-variant-option"
+                  data-variant={value}
+                  aria-pressed={currentVariant() === value}
+                  class="rounded-md border border-border-weak-base px-3 py-2 text-13-regular text-text-base"
+                  classList={{ "bg-surface-raised-base-hover text-text-strong": currentVariant() === value }}
+                  onClick={() => props.selection.variant.set(value === "default" ? undefined : value)}
+                >
+                  {value}
+                </button>
+              )}
+            </For>
+          </div>
+        </section>
+      </Show>
+    </div>
   )
 }
 
