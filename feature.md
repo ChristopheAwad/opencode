@@ -6,12 +6,14 @@ bottom before touching code.
 
 ## Status
 
-- R1 foundation: shipped to the branch and to the phone (see commits below).
-- M6b Wave A (W1-W4): pushed in `eaf86fd88b`; phone feedback round 1 fixed
-  and pushed in `b079d7c1c9`. All typechecks, unit (763), browser (46),
-  session-ui (88), CORS (10), and e2e suites pass except two PRE-EXISTING
-  tab-strip failures that also fail at HEAD without these changes. Second
-  phone check pending. See "Wave A delivery" below.
+- R1: SHIPPED 2026-10-08. Marked in `roadmap.md` after the phone check
+  passed. Wave A plus all phone-feedback fixes are pushed (`eaf86fd88b`
+  through `20a6179986`); CI builds a stably signed APK that updates in place.
+- M6b Wave A (W1-W4): done and verified on the phone. All typechecks, unit
+  (763), browser (46), session-ui (88), CORS (10), and e2e suites pass except
+  two PRE-EXISTING tab-strip failures that also fail at HEAD without these
+  changes. See "Wave A delivery" below.
+- Next work: R3 (M6b Waves B and C) when the user pulls it. R2 after R3.
 - `project-brief.md` does not exist on any branch of this fork (checked
   `git log --all`), so reviews validate against `roadmap.md`,
   `PERSONAL-FORK.md`, `packages/app/AGENTS.md`, and the code instead. Treat
@@ -33,9 +35,9 @@ bottom before touching code.
 3. Never commit or push without explicit user approval. The pre-push hook
    OOMs on this 5.3 GB machine; every push so far used `--no-verify` with
    explicit user approval.
-4. Wave A and its phone-feedback fixes are pushed. Next: push the Android
-   signing fix, then the second phone check.
-5. Screenshots: `screenshots/wave-a/` (before/after, 390x844).
+4. R1 is shipped. The next roadmap item is R3 (M6b Waves B and C): ask the
+   user before planning it. Never pre-plan Tier 3 work.
+5. Screenshots: `screenshots/wave-a/` (before/after, 390x844), untracked.
 
 ## What is live today
 
@@ -240,8 +242,8 @@ Decisions already made with the user:
   screenshots before/after → diff review gate → user approval → push
   (`--no-verify`, explicitly approved) → CI builds the APK → user checks on
   the phone → update `feature.md`.
-- After the phone check passes for Wave A, R1 can be marked shipped
-  (date-only, direct push). R3 ships after Waves B/C.
+- R1 was marked shipped 2026-10-08 after the phone check passed (date-only,
+  direct push). R3 ships after Waves B/C.
 - No push or commit without explicit user approval.
 
 ## Preview and test recipes
@@ -275,7 +277,7 @@ Expo/React Native, which is out of scope. R2 (parity and resume hardening:
 vendored client upgrade, per-session replay, edit/fork, subagent drill-down,
 skills display, composer attachments, iOS) starts only after R3.
 
-## Wave A delivery (uncommitted, 2026-10-08)
+## Wave A delivery (shipped 2026-10-08)
 
 Implemented:
 - W1: `components/mobile-nav.tsx` (Home/Search/New/Servers + reconnect chip),
