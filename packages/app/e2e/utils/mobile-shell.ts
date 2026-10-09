@@ -44,6 +44,9 @@ export async function seedMobileServer(
   )
 }
 
-export function mockMobileServer(page: Page, config: Omit<MockServerConfig, "protocol">) {
+export function mockMobileServer(
+  page: Page,
+  config: Omit<MockServerConfig, "protocol"> & { protocol?: "v1" | "v2" },
+) {
   return mockOpenCodeServer(page, { protocol: "v2", ...config })
 }

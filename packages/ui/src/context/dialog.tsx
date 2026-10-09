@@ -78,6 +78,7 @@ function init() {
   const mount = (element: DialogElement, owner: Owner, onClose: (() => void) | undefined, layer: number) => {
     const id = Math.random().toString(36).slice(2)
     const zIndex = 50 + layer * 10
+    const openedAt = performance.now()
     let dispose: (() => void) | undefined
     let setClosing: ((closing: boolean) => void) | undefined
 
@@ -99,7 +100,11 @@ function init() {
               <Kobalte.Overlay
                 data-component="dialog-overlay"
                 style={{ "z-index": String(zIndex) }}
-                onClick={() => close(id)}
+                onClick={() => {
+                  // A tap that opened the dialog dispatches its click on this overlay afterwards.
+                  if (performance.now() - openedAt < 350) return
+                  close(id)
+                }}
               />
               <div
                 data-dialog-layer={layer}

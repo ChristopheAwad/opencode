@@ -10,7 +10,13 @@ const longTitle = "A very long session title that cannot fit on one phone line a
 
 async function openSession(
   page: Page,
-  input: { title?: string; status?: Record<string, unknown>; locale?: string; native?: boolean } = {},
+  input: {
+    title?: string
+    status?: Record<string, unknown>
+    locale?: string
+    native?: boolean
+    protocol?: "v1" | "v2"
+  } = {},
 ) {
   if (input.native ?? true) await installNativeShell(page)
   await seedMobileServer(page, { directory })
@@ -18,6 +24,7 @@ async function openSession(
     if (locale) localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale }))
   }, input.locale)
   await mockMobileServer(page, {
+    protocol: input.protocol ?? "v2",
     directory,
     project: { ...project(), id: "project", worktree: directory, directory },
     provider: {
@@ -104,8 +111,8 @@ test.describe("compact native session header", () => {
   test("renames the session from the header menu", async ({ page }) => {
     const header = await openSession(page)
 
-    await header.getByRole("button", { name: "More options" }).click()
-    await page.getByRole("menuitem", { name: "Rename" }).click()
+    await header.getByRole("button", { name: "More options" }).tap()
+    await page.getByRole("menuitem", { name: "Rename" }).tap()
 
     const input = page.getByRole("textbox", { name: "Rename" })
     await expect(input).toHaveValue("Header session")
@@ -115,6 +122,30 @@ test.describe("compact native session header", () => {
     await request
 
     await expect(header.locator('[data-slot="mobile-session-title"]')).toHaveText("Renamed from phone")
+  })
+
+  test("renames the session against a v1 server", async ({ page }) => {
+    const header = await openSession(page, { protocol: "v1" })
+    await page.route(/\/session\/[^/]+(?:\?.*)?$/, (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback()
+      const payload: unknown = route.request().postDataJSON()
+      const title =
+        payload && typeof payload === "object" && "title" in payload && typeof payload.title === "string"
+          ? payload.title
+          : undefined
+      return route.fulfill({ json: { title } })
+    })
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Rename" }).click()
+
+    const input = page.getByRole("textbox", { name: "Rename" })
+    await input.fill("Renamed on v1")
+    const request = page.waitForRequest((req) => req.method() === "PATCH" && /\/session\/[^/]+/.test(req.url()))
+    await page.getByRole("button", { name: "Save" }).click()
+    await request
+
+    await expect(header.locator('[data-slot="mobile-session-title"]')).toHaveText("Renamed on v1")
   })
 
   test("keeps the draft when renaming fails", async ({ page }) => {
@@ -144,8 +175,8 @@ test.describe("compact native session header", () => {
       return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
     })
 
-    await header.getByRole("button", { name: "More options" }).click()
-    await page.getByRole("menuitem", { name: "Delete" }).click()
+    await header.getByRole("button", { name: "More options" }).tap()
+    await page.getByRole("menuitem", { name: "Delete" }).tap()
 
     const confirm = page.getByRole("button", { name: "Delete session", exact: true })
     await expect(confirm).toBeVisible()
@@ -189,9 +220,15 @@ test.describe("compact native session header", () => {
     await page.locator("[data-session-title]").getByRole("button", { name: "View context usage" }).click()
 
     const dialog = page.getByRole("dialog")
-    await expect(dialog.getByText("Cost", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Model", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Context Limit", { exact: true })).toBeVisible()
     await expect(dialog.getByText("Usage", { exact: true })).toBeVisible()
-    await expect(dialog.getByText("Tokens", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Cost", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Input Tokens", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Output Tokens", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Reasoning Tokens", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Cache Tokens (read/write)", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Total Tokens", { exact: true })).toBeVisible()
 
     await dialog.getByRole("button", { name: "Close" }).click()
     await expect(dialog).toBeHidden()
