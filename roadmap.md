@@ -44,7 +44,28 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Scope: **M6b Waves B and C** in `feature.md` — W5 mobile sheets, W6 touch targets and long-press, W7 gestures and haptics, W8 timeline performance (measure first; targeted fixes only).
 - Out of scope: iOS, push notifications, true native rewrite.
 
+## R4 — opencode mobile app: daily-use features
+
+- Status: planned
+- Tier: 2
+- Effort: XL
+- Depends on: R3 (W5 sheets for settings and pickers, W6 long-press, W7 swipe actions)
+- Files: `packages/app/src/components/`, `packages/app/src/pages/home/`, `packages/app/src/pages/`, `packages/app/src/context/`, `packages/app/src/i18n/`, `packages/mobile/`, `packages/app/e2e/`, `packages/server/src/` (scratch project, confirm at plan review)
+- Goal: make the phone app a daily driver: mobile settings, a richer sessions list, one session action menu, project-less sessions, and visible sync feedback.
+- Scope (item numbers from the 2026-10-09 review, recorded in `feature.md`):
+  - Mobile settings destination: its own entry point (#1), mobile-first layout instead of squeezed desktop chrome (#2), settings search (#20).
+  - Sessions list v2: taller rows with project, branch, relative last-accessed time, and status (#12); pin sessions to the top (#4); project search in the top section (#18); expanding search icon for sessions and projects (#19).
+  - Settle = archive shortcut (#5), auto-settle/archive on commit (#14).
+  - One session action menu shared by the header and long-press (#8, #11 residual); context info tap and Session/Changes context redesign (#15 residual, #23).
+  - New session/project: prompt for a known project (#9), "No Project" scratch project (#13), friendlier directory navigator (#10).
+  - Sync and feedback: focus/visibility resync (fixes the web tab-switch staleness too), pending/syncing feedback when an action is tapped on a slow network (#6, #17).
+  - Composer: Enter inserts a newline instead of sending (#22).
+  - Model favorites (#3).
+  - Native design pass: buttons, icons, navigation, and animation (#21).
+- Out of scope: iOS, push notifications, durable replay (R2), true native rewrite.
+
 ## Implementation order
 
 1. R3 (next): M6b Waves B and C.
-2. R2 after R3 ships.
+2. R4: mobile daily-use features.
+3. R2: parity and resume hardening.

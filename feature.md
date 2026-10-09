@@ -13,19 +13,102 @@ bottom before touching code.
   (763), browser (46), session-ui (88), CORS (10), and e2e suites pass except
   two PRE-EXISTING tab-strip failures that also fail at HEAD without these
   changes. See "Wave A delivery" below.
-- Next work: R3 (M6b Waves B and C) when the user pulls it. R2 after R3.
+- Roadmap order is now R3 → R4 → R2. R4 "daily-use features" was added
+  2026-10-09 from the user's 23-item review list (see "In progress" below);
+  item numbers #1-#23 are stable for future references.
+- Next work: the in-progress bug batch (#11/#15/#16) below is implemented,
+  reviewed, and awaiting the push approval plus the phone check. R3 (M6b
+  Waves B and C) stays next for feature work and is pulled only when the
+  user asks.
 - `project-brief.md` does not exist on any branch of this fork (checked
   `git log --all`), so reviews validate against `roadmap.md`,
   `PERSONAL-FORK.md`, `packages/app/AGENTS.md`, and the code instead. Treat
   `roadmap.md` as the product authority for this fork.
-- Uncommitted local change: Android update signing fix. CI used a fresh random
-  debug key on every run, so the phone rejected updates. The workflow now
-  restores one stable debug keystore from the `ANDROID_DEBUG_KEYSTORE_BASE64`
-  repository secret, sets `ANDROID_VERSION_CODE` from the run number, and
-  verifies the APK signature. See `PERSONAL-FORK.md`. One more uninstall is
-  needed to move the phone to the stable key.
+- Android update signing fix is committed and pushed (`7b368f9b44`,
+  `37a38d5ba5`, `62aba8fada`); CI now restores one stable debug keystore from
+  the `ANDROID_DEBUG_KEYSTORE_BASE64` secret, sets `ANDROID_VERSION_CODE` from
+  the run number, and verifies the APK signature. See `PERSONAL-FORK.md`. One
+  more full uninstall is needed if the phone still runs a pre-2026-10-08 APK.
 - `.husky/pre-push` has a pre-existing local edit (`TURBO_CONCURRENCY=2`);
   never stage it.
+
+## In progress — session-header bug batch #11/#15/#16 (2026-10-09)
+
+Three confirmed bugs from the user review, done before any new feature work.
+Full consolidation option chosen (no Rename/Delete regression).
+
+- #11 two 3-dot menus in a session: `mobile-session-header.tsx:84-109` and the
+  timeline sticky row menu (`message-timeline.tsx:1481-1633`) are both visible
+  on native. Fix: the header menu becomes the single owner and gains Rename
+  and Delete; the timeline menu is hidden when
+  `isNativeShell() && settings.general.newLayoutDesigns()`, mirroring
+  `pages/session.tsx:379,2259`.
+- #15 context info icon dead on APK: `TooltipV2` is hover-only and the opened
+  context panel is desktop-only. Fix: on native, tapping
+  `components/session-context-usage.tsx` opens a small `DialogV2` with the
+  same Cost/Usage/Tokens rows. Reuse existing `context.usage.*` keys; no new
+  i18n keys (parity test).
+- #16 session title duplicated: header title
+  (`mobile-session-header.tsx:44-50`) plus timeline sticky title
+  (`message-timeline.tsx:1416-1427`). Fix: hide the title block in the sticky
+  row on native; keep `SessionContextUsage`; row stays so sticky offsets do
+  not change. Known trade-off: subagent parent breadcrumb is hidden on native
+  until R2 drill-down.
+- New files: `components/dialog-rename-session.tsx` (v2 dialog, reuses
+  `common.rename/save/cancel/requestFailed`, optimistic `sync().set` like
+  `message-timeline.tsx:675-693`) and `components/dialog-delete-session.tsx`
+  (extract `DialogDeleteSession`, `message-timeline.tsx:889-937`, shared by
+  both call sites).
+- Tests: extend `e2e/regression/mobile-session-header.spec.ts` — one title
+  and one menu on native; Rename dialog updates the header title; Delete
+  confirm cancels without DELETE; context tap opens the dialog; non-native
+  timeline chrome unchanged. Mock already serves rename/delete
+  (`e2e/utils/mock-server.ts:251-259`).
+- Verification: `bun run test:stability` baseline before the timeline edit and
+  after; from `packages/app`: `typecheck`, `typecheck:e2e`,
+  `test:e2e -- regression/mobile-session-header.spec.ts`,
+  `test:e2e -- regression/session-rename.spec.ts`, then the full e2e suite
+  (2 known pre-existing tab-strip failures). Reviewer diff gate on the
+  uncommitted diff. No commit or push without explicit user approval.
+- Results (2026-10-09): implemented tests-first (7 new failures before the
+  code). `typecheck`, `typecheck:e2e` pass; unit 763, browser 46;
+  mobile-session-header 15 pass; session-rename/subagent/review regressions
+  11 pass; full e2e 156 pass / 2 pre-existing `tab-strip-mobile-scroll`
+  failures; `test:stability` 43 pass / 1 pre-existing `adverse.spec.ts:82`
+  fail, identical to the pre-change baseline. oxlint 0 errors (new files
+  clean). Reviewer diff gate: no blocking issues; 2 nits fixed (live
+  accessors in the context dialog, delete-failure e2e added).
+- Status: awaiting user approval to push (`--no-verify`); CI then rebuilds
+  the APK for the phone check.
+
+## User review item index (2026-10-09)
+
+Decisions: settle = archive shortcut; #13 "No Project" = app-mapped scratch
+project on the server (no protocol change); roadmap order R3 → R4 → R2.
+
+- #1 settings icon hidden at sessions-page bottom → R4 (settings destination)
+- #2 settings squeezed desktop layout → R4
+- #3 favorite models → R4 (unused `favorite?` already in `context/models.tsx:12`)
+- #4 pin sessions to top → R4
+- #5 settle sessions → R4 (archive shortcut)
+- #6 background/focus resync, web tab-switch staleness → R4 (investigate first; also affects web)
+- #7 swipe on session rows → R3 W7 (already planned)
+- #8 long-press session action menu → R3 W6 (already planned)
+- #9 new session prompts for known project → R4
+- #10 nicer new-project directory navigator → R4
+- #11 two session 3-dot menus → IN PROGRESS (this batch)
+- #12 taller/richer session rows (project, branch, relative time, status) → R4 (W2 shipped time + avatar status)
+- #13 "No Project" sessions → R4 (scratch project)
+- #14 auto settle/archive on commit → R4 (depends on #5 semantics)
+- #15 context info icon dead on APK → IN PROGRESS (this batch)
+- #16 session name shown twice → IN PROGRESS (this batch)
+- #17 slow-network taps need syncing/loading feedback → R4 (with #6)
+- #18 search projects in sessions top section → R4
+- #19 expanding loop search icon (sessions + projects) → R4
+- #20 settings search bar → R4
+- #21 native design pass (buttons, icons, navigation, animation) → R4
+- #22 Enter = newline, not send → R4
+- #23 Session/Changes redesign with context → R4
 
 ## Fresh-session quickstart
 
@@ -35,8 +118,10 @@ bottom before touching code.
 3. Never commit or push without explicit user approval. The pre-push hook
    OOMs on this 5.3 GB machine; every push so far used `--no-verify` with
    explicit user approval.
-4. R1 is shipped. The next roadmap item is R3 (M6b Waves B and C): ask the
-   user before planning it. Never pre-plan Tier 3 work.
+4. R1 is shipped. The in-progress session-header bug batch is described
+   above; finish it first. Then R3 (M6b Waves B and C) is the next feature
+   item, then R4 (daily-use features), then R2. Ask the user before planning
+   any of them. Never pre-plan Tier 3 work.
 5. Screenshots: `screenshots/wave-a/` (before/after, 390x844), untracked.
 
 ## What is live today
