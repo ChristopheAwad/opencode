@@ -16,6 +16,7 @@ import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { useSDK } from "@/context/sdk"
 import { getSessionContext } from "@/components/session/session-context-metrics"
+import { createSessionContextFormatter } from "@/components/session/session-context-format"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSettings } from "@/context/settings"
@@ -36,19 +37,49 @@ function ContextTooltipRow(props: { name: JSX.Element; value: JSX.Element }) {
   )
 }
 
-function ContextUsageDialog(props: { cost: Accessor<string>; usage: Accessor<number>; tokens: Accessor<string> }) {
+function ContextUsageDialog(props: {
+  context: Accessor<ReturnType<typeof getSessionContext>>
+  cost: Accessor<string>
+}) {
   const dialog = useDialog()
   const language = useLanguage()
+  const format = createSessionContextFormatter(language.intl())
 
   return (
     <DialogV2 fit>
       <DialogHeader hideClose>
         <DialogTitle>{language.t("context.usage.view")}</DialogTitle>
       </DialogHeader>
-      <DialogBody class="flex w-[240px] flex-col gap-2 px-6 pb-2">
+      <DialogBody class="flex w-[260px] max-h-[60vh] flex-col gap-2 overflow-y-auto px-6 pb-2">
+        <ContextTooltipRow name={language.t("context.stats.model")} value={props.context()?.modelLabel ?? "—"} />
+        <ContextTooltipRow
+          name={language.t("context.stats.limit")}
+          value={format.number(props.context()?.limit)}
+        />
+        <ContextTooltipRow name={language.t("context.stats.usage")} value={format.percent(props.context()?.usage)} />
         <ContextTooltipRow name={language.t("context.usage.cost")} value={props.cost()} />
-        <ContextTooltipRow name={language.t("context.usage.usage")} value={`${props.usage()}%`} />
-        <ContextTooltipRow name={language.t("context.usage.tokens")} value={props.tokens()} />
+        <ContextTooltipRow
+          name={language.t("context.stats.inputTokens")}
+          value={format.number(props.context()?.input)}
+        />
+        <ContextTooltipRow
+          name={language.t("context.stats.outputTokens")}
+          value={format.number(props.context()?.message.tokens.output)}
+        />
+        <ContextTooltipRow
+          name={language.t("context.stats.reasoningTokens")}
+          value={format.number(props.context()?.message.tokens.reasoning)}
+        />
+        <ContextTooltipRow
+          name={language.t("context.stats.cacheTokens")}
+          value={`${format.number(props.context()?.message.tokens.cache.read)} / ${format.number(
+            props.context()?.message.tokens.cache.write,
+          )}`}
+        />
+        <ContextTooltipRow
+          name={language.t("context.stats.totalTokens")}
+          value={format.number(props.context()?.total)}
+        />
       </DialogBody>
       <DialogFooter>
         <ButtonV2 variant="neutral" onClick={() => dialog.close()}>
@@ -132,13 +163,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
 
   const openNativeContext = () => {
     if (!params.id) return
-    dialog.show(() => (
-      <ContextUsageDialog
-        cost={cost}
-        usage={() => context()?.usage ?? 0}
-        tokens={() => context()?.total.toLocaleString(language.intl()) ?? "0"}
-      />
-    ))
+    dialog.show(() => <ContextUsageDialog context={context} cost={cost} />)
   }
 
   const circle = () => (
