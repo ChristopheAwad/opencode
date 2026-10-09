@@ -90,10 +90,25 @@ lock or corrupt it. Stop one before starting the other.
   generated fresh on each runner. The first install of a stable-key APK needs
   a full uninstall. After that, updates install over the app.
 
+## Phone build workflow
+
+- The APK is built only by CI, on every push to `insecure-combined`. This
+  machine has no Android SDK, so never run Gradle locally.
+- Both jobs must pass. The `android` job verifies the APK signature against
+  the stable key.
+- Pushes use `git push --no-verify`. The pre-push hook runs a full typecheck
+  that OOMs on this 5.3 GB machine. Use it only with the user's explicit
+  approval.
+- Install or update the phone app from
+  `https://github.com/ChristopheAwad/opencode/releases/download/personal-latest/opencode-mobile-debug.apk`.
+  The stable key makes updates install in place.
+- Run `gh` with `-R ChristopheAwad/opencode`. Without it, `gh` targets the
+  upstream repo. `gh run watch <id> -R ChristopheAwad/opencode` waits for CI.
+
 ## CI rebuilds
 
 Pushing `insecure-combined` triggers `.github/workflows/personal-build.yml`:
 runs both insecure-origin test suites, builds the Linux x64 binary, and
-re-uploads it to the `personal-latest` release. A normal run takes ~2 minutes.
+re-uploads it to the `personal-latest` release. A normal run takes ~5 minutes.
 The workflow refuses to run anywhere except the `ChristopheAwad/opencode`
 repository (job guard), so upstream is never affected.
