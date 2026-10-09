@@ -16,6 +16,7 @@ export interface MockServerConfig {
   onInstanceDispose?: () => void
   directory: string
   project: unknown
+  agents?: unknown[]
   sessions: ({ id: string } & Record<string, unknown>)[]
   pageMessages: (sessionId: string, limit: number, before?: string) => { items: unknown[]; cursor?: string }
   vcsDiff?: unknown[]
@@ -48,7 +49,6 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     },
     "/project": [config.project],
     "/project/current": config.project,
-    "/agent": [{ name: "build", mode: "primary", native: true }],
     "/vcs": { branch: "main", default_branch: "main" },
     "/session": config.sessions,
   }
@@ -103,6 +103,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
       config.onInstanceDispose?.()
       return json(route, true)
     }
+    if (path === "/agent") return json(route, config.agents ?? [{ name: "build", mode: "primary", native: true }])
     if (path === "/permission")
       return json(route, typeof config.permissions === "function" ? config.permissions() : (config.permissions ?? []))
     if (path === "/question")
@@ -137,7 +138,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/agent")
       return json(route, {
         location: location(config),
-        data: [
+        data: config.agents ?? [
           {
             id: "build",
             name: "Build",

@@ -333,10 +333,11 @@ Phone feedback round 1 (2026-10-08, uncommitted fixes):
 6. Model name was capped at 7.5rem on phones: the native button is now
    `flex-1 max-w-none`, so the name uses the free space.
 7. Agent selector still missing after the restore: the new-layout preference
-   hides it unless the server has custom agents. Native now always shows it
-   when agents exist (`agentControlVisible` in `context/local-agent.ts`),
-   verified against the live server. The e2e mock agents are `native: true`
-   to match reality.
+   hides it unless the server has custom agents. `local.agent.visible` now
+   includes `isNativeShell()`, so both the selector and
+   `local.agent.current()`/`set` work on native (the earlier view-only fix
+   showed the control but ignored the selection). Verified against the live
+   server. The e2e mock can now inject an agent list and covers switching.
 - Tests: mobile-sessions 6, mobile-composer 9; full e2e 149 pass / 2
   pre-existing fail; unit 766, browser 46, session-ui 88.
 

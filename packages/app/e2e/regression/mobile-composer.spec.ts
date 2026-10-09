@@ -16,6 +16,10 @@ async function openSession(
   await mockMobileServer(page, {
     directory,
     project: { ...project(), id: "project", worktree: directory, directory },
+    agents: [
+      { name: "build", mode: "primary", native: true },
+      { name: "plan", mode: "primary", native: true },
+    ],
     provider: {
       all: [
         {
@@ -102,6 +106,16 @@ test.describe("native composer", () => {
     expect(submitBox).not.toBeNull()
     expect(submitBox!.width).toBeGreaterThanOrEqual(36)
     expect(submitBox!.height).toBeGreaterThanOrEqual(36)
+  })
+
+  test("switches the agent from the selector", async ({ page }) => {
+    const composer = await openSession(page)
+    const agent = composer.getByRole("button", { name: "Choose agent" })
+
+    await expect(agent).toContainText(/build/i)
+    await agent.click()
+    await page.getByRole("menuitemradio", { name: /plan/i }).click()
+    await expect(agent).toContainText(/plan/i)
   })
 
   test("shows the full model name when space allows", async ({ page }) => {
