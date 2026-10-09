@@ -35,8 +35,6 @@ import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
 import { InlineInput } from "@opencode-ai/ui/inline-input"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { SessionRetry } from "@opencode-ai/session-ui/session-retry"
@@ -60,6 +58,7 @@ import { normalize } from "@opencode-ai/session-ui/session-diff"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
+import { DialogDeleteSession } from "@/components/dialog-delete-session"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { useSessionKey } from "@/pages/session/session-layout"
@@ -70,8 +69,8 @@ import { useSettings } from "@/context/settings"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
-import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
 import { sessionTitle } from "@/utils/session-title"
+import { isNativeShell } from "@/utils/native-platform"
 import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
@@ -330,6 +329,7 @@ export function MessageTimeline(props: {
     return language.t("command.session.new")
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
+  const hideTitle = createMemo(() => isNativeShell() && settings.general.newLayoutDesigns())
   const projection = createTimelineProjection({
     messages: sessionMessages,
     userMessages: () => props.userMessages,
@@ -814,125 +814,11 @@ export function MessageTimeline(props: {
     }
   }
 
-  const deleteSession = async (sessionID: string) => {
-    const session = sync().session.get(sessionID)
-    if (!session) return false
-
-    const sessions = (sync().data.session ?? []).filter((s) => !s.parentID && !s.time?.archived)
-    const index = sessions.findIndex((s) => s.id === sessionID)
-    const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
-
-    const result = await sdk()
-      .api.session.remove({ sessionID })
-      .then(() => true)
-      .catch((err) => {
-        showToast({
-          title: language.t("session.delete.failed.title"),
-          description: errorMessage(err),
-        })
-        return false
-      })
-
-    if (!result) return false
-
-    const removed = new Set<string>([sessionID])
-    const byParent = new Map<string, string[]>()
-    for (const item of sync().data.session) {
-      const parentID = item.parentID
-      if (!parentID) continue
-      const existing = byParent.get(parentID)
-      if (existing) {
-        existing.push(item.id)
-        continue
-      }
-      byParent.set(parentID, [item.id])
-    }
-
-    const stack = [sessionID]
-    while (stack.length) {
-      const parentID = stack.pop()
-      if (!parentID) continue
-
-      const children = byParent.get(parentID)
-      if (!children) continue
-
-      for (const child of children) {
-        if (removed.has(child)) continue
-        removed.add(child)
-        stack.push(child)
-      }
-    }
-
-    sessionArchive.navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
-
-    sync().set(
-      produce((draft) => {
-        draft.session = draft.session.filter((s) => !removed.has(s.id))
-      }),
-    )
-
-    for (const id of removed) {
-      sync().session.evict(id)
-    }
-    notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [...removed] })
-    return true
-  }
-
   const navigateParent = () => {
     const id = parentID()
     if (!id) return
     navigate(
       params.serverKey ? sessionHref(requireServerKey(params.serverKey), id) : legacySessionHref(sdk().directory, id),
-    )
-  }
-
-  function DialogDeleteSession(props: { sessionID: string }) {
-    const name = createMemo(
-      () => sessionTitle(sync().session.get(props.sessionID)?.title) ?? language.t("command.session.new"),
-    )
-    const handleDelete = async () => {
-      await deleteSession(props.sessionID)
-      dialog.close()
-    }
-
-    if (settings.general.newLayoutDesigns())
-      return (
-        <DialogV2 fit>
-          <DialogHeader hideClose>
-            <DialogTitleGroup
-              title={language.t("session.delete.title")}
-              description={language.t("session.delete.confirm", { name: name() })}
-            />
-          </DialogHeader>
-          <DialogFooter>
-            <ButtonV2 variant="ghost" onClick={() => dialog.close()}>
-              {language.t("common.cancel")}
-            </ButtonV2>
-            <ButtonV2 variant="danger" onClick={handleDelete}>
-              {language.t("session.delete.button")}
-            </ButtonV2>
-          </DialogFooter>
-        </DialogV2>
-      )
-
-    return (
-      <Dialog title={language.t("session.delete.title")} fit>
-        <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
-          <div class="flex flex-col gap-1">
-            <span class="text-14-regular text-text-strong">
-              {language.t("session.delete.confirm", { name: name() })}
-            </span>
-          </div>
-          <div class="flex justify-end gap-2">
-            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-              {language.t("common.cancel")}
-            </Button>
-            <Button variant="primary" size="large" onClick={handleDelete}>
-              {language.t("session.delete.button")}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
     )
   }
 
@@ -1392,7 +1278,7 @@ export function MessageTimeline(props: {
                 }}
               >
                 <div class="flex items-center min-w-0 flex-1 w-full">
-                  <Show when={parentID()}>
+                  <Show when={parentID() && !hideTitle()}>
                     <button
                       type="button"
                       data-slot="session-title-parent"
@@ -1409,7 +1295,7 @@ export function MessageTimeline(props: {
                       /
                     </span>
                   </Show>
-                  <Show when={childTitle() || title.editing}>
+                  <Show when={!hideTitle() && (childTitle() || title.editing)}>
                     <Show
                       when={title.editing}
                       fallback={
@@ -1478,7 +1364,7 @@ export function MessageTimeline(props: {
                       placement="bottom"
                       buttonAppearance={settings.general.newLayoutDesigns() ? "v2" : "default"}
                     />
-                    <Show when={!parentID()}>
+                    <Show when={!parentID() && !hideTitle()}>
                       <Show
                         when={settings.general.newLayoutDesigns()}
                         fallback={

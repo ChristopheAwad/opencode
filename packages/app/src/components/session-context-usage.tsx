@@ -1,7 +1,10 @@
-import { Match, Show, Switch, createMemo, type ComponentProps, type JSX } from "solid-js"
+import { Match, Show, Switch, createMemo, type Accessor, type ComponentProps, type JSX } from "solid-js"
 import { ProgressCircle } from "@opencode-ai/ui/progress-circle"
 import { ProgressCircleV2 } from "@opencode-ai/ui/v2/progress-circle-v2"
 import { Button } from "@opencode-ai/ui/button"
+import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { DialogBody, DialogFooter, DialogHeader, DialogTitle, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -16,6 +19,7 @@ import { getSessionContext } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSettings } from "@/context/settings"
+import { isNativeShell } from "@/utils/native-platform"
 
 interface SessionContextUsageProps {
   variant?: "button" | "indicator"
@@ -29,6 +33,29 @@ function ContextTooltipRow(props: { name: JSX.Element; value: JSX.Element }) {
       <span class="shrink-0 text-v2-text-text-muted">{props.name}</span>
       <span class="ml-auto min-w-0 truncate text-right text-v2-text-text-base">{props.value}</span>
     </div>
+  )
+}
+
+function ContextUsageDialog(props: { cost: Accessor<string>; usage: Accessor<number>; tokens: Accessor<string> }) {
+  const dialog = useDialog()
+  const language = useLanguage()
+
+  return (
+    <DialogV2 fit>
+      <DialogHeader hideClose>
+        <DialogTitle>{language.t("context.usage.view")}</DialogTitle>
+      </DialogHeader>
+      <DialogBody class="flex w-[240px] flex-col gap-2 px-6 pb-2">
+        <ContextTooltipRow name={language.t("context.usage.cost")} value={props.cost()} />
+        <ContextTooltipRow name={language.t("context.usage.usage")} value={`${props.usage()}%`} />
+        <ContextTooltipRow name={language.t("context.usage.tokens")} value={props.tokens()} />
+      </DialogBody>
+      <DialogFooter>
+        <ButtonV2 variant="neutral" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </ButtonV2>
+      </DialogFooter>
+    </DialogV2>
   )
 }
 
@@ -53,6 +80,8 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   const providers = useProviders(() => sdk().directory)
   const { params, tabs, view } = useSessionLayout()
   const isDesktop = createMediaQuery("(min-width: 768px)")
+  const native = isNativeShell()
+  const dialog = useDialog()
 
   const variant = createMemo(() => props.variant ?? "button")
   const buttonAppearance = createMemo(() => props.buttonAppearance ?? "default")
@@ -101,6 +130,17 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     })
   }
 
+  const openNativeContext = () => {
+    if (!params.id) return
+    dialog.show(() => (
+      <ContextUsageDialog
+        cost={cost}
+        usage={() => context()?.usage ?? 0}
+        tokens={() => context()?.total.toLocaleString(language.intl()) ?? "0"}
+      />
+    ))
+  }
+
   const circle = () => (
     <div class="flex items-center justify-center">
       <ProgressCircle
@@ -136,34 +176,40 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     </div>
   )
 
+  const trigger = (onClick: () => void) => (
+    <Switch>
+      <Match when={variant() === "indicator"}>{circle()}</Match>
+      <Match when={buttonAppearance() === "v2"}>
+        <IconButtonV2
+          type="button"
+          variant="ghost-muted"
+          size="large"
+          icon={circleV2()}
+          onClick={onClick}
+          aria-label={language.t("context.usage.view")}
+        />
+      </Match>
+      <Match when={true}>
+        <Button
+          type="button"
+          variant="ghost"
+          class="size-6"
+          onClick={onClick}
+          aria-label={language.t("context.usage.view")}
+        >
+          {circle()}
+        </Button>
+      </Match>
+    </Switch>
+  )
+
   return (
     <Show when={params.id}>
-      <TooltipV2 value={tooltipValue()} placement={props.placement ?? "top"} shift={-8}>
-        <Switch>
-          <Match when={variant() === "indicator"}>{circle()}</Match>
-          <Match when={buttonAppearance() === "v2"}>
-            <IconButtonV2
-              type="button"
-              variant="ghost-muted"
-              size="large"
-              icon={circleV2()}
-              onClick={openContext}
-              aria-label={language.t("context.usage.view")}
-            />
-          </Match>
-          <Match when={true}>
-            <Button
-              type="button"
-              variant="ghost"
-              class="size-6"
-              onClick={openContext}
-              aria-label={language.t("context.usage.view")}
-            >
-              {circle()}
-            </Button>
-          </Match>
-        </Switch>
-      </TooltipV2>
+      <Show when={!native} fallback={trigger(openNativeContext)}>
+        <TooltipV2 value={tooltipValue()} placement={props.placement ?? "top"} shift={-8}>
+          {trigger(openContext)}
+        </TooltipV2>
+      </Show>
     </Show>
   )
 }

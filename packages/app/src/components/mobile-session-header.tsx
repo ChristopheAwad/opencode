@@ -1,9 +1,12 @@
 import { createMemo, Show } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { SessionProgressIndicatorV2 } from "@opencode-ai/session-ui/v2/session-progress-indicator-v2"
+import { DialogDeleteSession } from "@/components/dialog-delete-session"
+import { DialogRenameSession } from "@/components/dialog-rename-session"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
@@ -16,6 +19,7 @@ export function MobileSessionHeader(props: {
   onSelect: (tab: "session" | "changes") => void
 }) {
   const command = useCommand()
+  const dialog = useDialog()
   const language = useLanguage()
   const sync = useSync()
   const { params } = useSessionLayout()
@@ -27,6 +31,18 @@ export function MobileSessionHeader(props: {
   )
   const working = createMemo(() => !!params.id && sync().data.session_working(params.id))
   const shareEnabled = createMemo(() => sync().data.config.share !== "disabled")
+
+  const openRename = () => {
+    const id = params.id
+    if (!id) return
+    dialog.show(() => <DialogRenameSession sessionID={id} />)
+  }
+
+  const openDelete = () => {
+    const id = params.id
+    if (!id) return
+    dialog.show(() => <DialogDeleteSession sessionID={id} />)
+  }
 
   return (
     <header
@@ -91,6 +107,7 @@ export function MobileSessionHeader(props: {
         />
         <MenuV2.Portal>
           <MenuV2.Content style={{ width: "160px", "min-width": "160px" }}>
+            <MenuV2.Item onSelect={openRename}>{language.t("common.rename")}</MenuV2.Item>
             <Show when={shareEnabled()}>
               <MenuV2.Item onSelect={() => command.trigger("session.share")}>
                 {language.t("session.share.action.share")}
@@ -100,6 +117,8 @@ export function MobileSessionHeader(props: {
             <MenuV2.Item onSelect={() => command.trigger("session.archive")}>
               {language.t("common.archive")}
             </MenuV2.Item>
+            <MenuV2.Separator />
+            <MenuV2.Item onSelect={openDelete}>{language.t("common.delete")}</MenuV2.Item>
             <MenuV2.Separator />
             <MenuV2.Item onSelect={() => command.trigger("session.new")}>
               {language.t("command.session.new")}

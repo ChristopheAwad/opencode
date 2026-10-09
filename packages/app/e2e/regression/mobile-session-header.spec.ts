@@ -65,6 +65,8 @@ test.describe("compact native session header", () => {
     await expect(header.getByRole("button", { name: "More options" })).toBeVisible()
     await expect(page.locator('[data-slot="titlebar-v2"]')).toBeHidden()
     await expect(page.locator('[role="tab"]')).toHaveCount(0)
+    await expect(page.locator('[data-slot="session-title-child"]')).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "More options" })).toHaveCount(1)
   })
 
   test("back returns to the sessions list", async ({ page }) => {
@@ -90,6 +92,111 @@ test.describe("compact native session header", () => {
     await expect(page).toHaveURL(/\/new-session\?draftId=/)
   })
 
+  test("overflow menu offers rename and delete on native", async ({ page }) => {
+    const header = await openSession(page)
+
+    await header.getByRole("button", { name: "More options" }).click()
+
+    await expect(page.getByRole("menuitem", { name: "Rename" })).toBeVisible()
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible()
+  })
+
+  test("renames the session from the header menu", async ({ page }) => {
+    const header = await openSession(page)
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Rename" }).click()
+
+    const input = page.getByRole("textbox", { name: "Rename" })
+    await expect(input).toHaveValue("Header session")
+    await input.fill("Renamed from phone")
+    const request = page.waitForRequest((req) => req.method() === "POST" && /\/api\/session\/[^/]+\/rename$/.test(req.url()))
+    await page.getByRole("button", { name: "Save" }).click()
+    await request
+
+    await expect(header.locator('[data-slot="mobile-session-title"]')).toHaveText("Renamed from phone")
+  })
+
+  test("keeps the draft when renaming fails", async ({ page }) => {
+    const header = await openSession(page)
+    await page.route(/\/api\/session\/[^/]+\/rename$/, (route) =>
+      route.fulfill({ status: 500, headers: { "access-control-allow-origin": "*" } }),
+    )
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Rename" }).click()
+
+    const input = page.getByRole("textbox", { name: "Rename" })
+    await input.fill("Discarded title")
+    await page.getByRole("button", { name: "Save" }).click()
+
+    await expect(page.getByText("Request failed", { exact: true })).toBeVisible()
+    await expect(input).toHaveValue("Discarded title")
+    await expect(header.locator('[data-slot="mobile-session-title"]')).toHaveText("Header session")
+  })
+
+  test("delete confirmation can be cancelled without deleting", async ({ page }) => {
+    const header = await openSession(page)
+    const deletes: string[] = []
+    await page.route(/\/api\/session\/[^/]+$/, (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback()
+      deletes.push(route.request().url())
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    })
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Delete" }).click()
+
+    const confirm = page.getByRole("button", { name: "Delete session", exact: true })
+    await expect(confirm).toBeVisible()
+    await page.getByRole("button", { name: "Cancel" }).click()
+
+    await expect(confirm).toBeHidden()
+    expect(deletes).toHaveLength(0)
+    await expect(header).toBeVisible()
+  })
+
+  test("deletes the session after confirmation", async ({ page }) => {
+    const header = await openSession(page)
+    const request = page.waitForRequest((req) => req.method() === "DELETE" && /\/api\/session\/[^/]+$/.test(req.url()))
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Delete" }).click()
+    await page.getByRole("button", { name: "Delete session", exact: true }).click()
+    await request
+
+    await expect(page).not.toHaveURL(new RegExp(`/session/${sessionID}$`))
+  })
+
+  test("keeps the session when deleting fails", async ({ page }) => {
+    const header = await openSession(page)
+    await page.route(/\/api\/session\/[^/]+$/, (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback()
+      return route.fulfill({ status: 500, headers: { "access-control-allow-origin": "*" } })
+    })
+
+    await header.getByRole("button", { name: "More options" }).click()
+    await page.getByRole("menuitem", { name: "Delete" }).click()
+    await page.getByRole("button", { name: "Delete session", exact: true }).click()
+
+    await expect(page.getByText("Failed to delete session", { exact: true })).toBeVisible()
+    await expect(header).toBeVisible()
+  })
+
+  test("context usage opens a dialog on native", async ({ page }) => {
+    await openSession(page)
+
+    await page.locator("[data-session-title]").getByRole("button", { name: "View context usage" }).click()
+
+    const dialog = page.getByRole("dialog")
+    await expect(dialog.getByText("Cost", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Usage", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Tokens", { exact: true })).toBeVisible()
+
+    await dialog.getByRole("button", { name: "Close" }).click()
+    await expect(dialog).toBeHidden()
+  })
+
   test("shows the running spinner while the session works", async ({ page }) => {
     const header = await openSession(page, { status: { [sessionID]: { type: "running" } } })
 
@@ -108,6 +215,8 @@ test.describe("compact native session header", () => {
     await expect(page.locator('[data-component="mobile-session-header"]')).toHaveCount(0)
     await expect(page.locator('[data-slot="titlebar-v2"]')).toBeVisible()
     await expect(page.locator('[role="tab"]')).toHaveCount(2)
+    await expect(page.locator('[data-slot="session-title-child"]')).toBeVisible()
+    await expect(page.getByRole("button", { name: "More options" })).toHaveCount(1)
   })
 
   test("truncates very long titles", async ({ page }) => {
