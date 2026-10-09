@@ -38,6 +38,7 @@ import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
 import { PathKey } from "@/utils/path-key"
 import { createDirSyncContext } from "./directory-sync"
+import { subscribeAppLifecycle } from "@/utils/app-lifecycle"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import { createRefCountMap } from "@/utils/refcount"
@@ -299,6 +300,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   let bootingRoot = false
   let eventFrame: number | undefined
   let eventTimer: ReturnType<typeof setTimeout> | undefined
+  let connectedCount = 0
+  let resyncing = false
+  let lastResyncAt = 0
+  let wasHidden = false
 
   onCleanup(() => {
     if (eventFrame !== undefined) cancelAnimationFrame(eventFrame)
@@ -528,6 +533,34 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     })
   }
 
+  const catchUpSessions = () => {
+    session.markStale()
+    return session.catchUpMany(session.pinnedIDs())
+  }
+
+  // One resync at a time, and never twice in a burst: a reconnect storm or a
+  // foreground event pair must not refetch the world repeatedly.
+  const resync = () => {
+    if (resyncing) return
+    const at = Date.now()
+    if (at - lastResyncAt < 1_000) return
+    resyncing = true
+    lastResyncAt = at
+    wasHidden = false
+    void (async () => {
+      try {
+        await Promise.allSettled([activeSessionsQuery.refetch(), homeSessions.refresh("server.connected")])
+        void bootstrap.refetch()
+        for (const directory of Object.keys(children.children)) {
+          if (children.active(directory)) queue.push(directory)
+        }
+        await catchUpSessions()
+      } finally {
+        resyncing = false
+      }
+    })()
+  }
+
   const unsub = serverSDK.event.listen((e) => {
     const directory = e.name
     const key = directoryKey(directory)
@@ -544,6 +577,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     if (eventType === "integration.connection.updated") void refreshProviders()
 
     if (directory === "global") {
+      if (eventType === "server.connected") connectedCount++
       if (eventType === "server.connected" && activeSessionsQuery.data === undefined && !activeSessionsQuery.isFetching)
         void activeSessionsQuery.refetch()
       applyGlobalEvent({
@@ -563,10 +597,18 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       )
         bootstrap.refetch()
       if (eventType === "server.connected" || eventType === "global.disposed") {
-        if (recent) return
-        for (const directory of Object.keys(children.children)) {
-          if (!children.active(directory)) continue
-          queue.push(directory)
+        if (!recent) {
+          for (const directory of Object.keys(children.children)) {
+            if (!children.active(directory)) continue
+            queue.push(directory)
+          }
+        }
+        if (eventType === "server.connected" && connectedCount > 1 && !recent) {
+          const at = Date.now()
+          if (at - lastResyncAt >= 1_000) {
+            lastResyncAt = at
+            void catchUpSessions()
+          }
         }
       }
       return
@@ -630,6 +672,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     }
   })
 
+  let disposeLifecycle: (() => void) | undefined
   onMount(() => {
     if (typeof requestAnimationFrame === "function") {
       eventFrame = requestAnimationFrame(() => {
@@ -645,7 +688,17 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         void serverSDK.event.start()
       }, 0)
     }
+    disposeLifecycle = subscribeAppLifecycle({
+      active: () => {
+        if (!wasHidden) return
+        resync()
+      },
+      inactive: () => {
+        wasHidden = true
+      },
+    })
   })
+  onCleanup(() => disposeLifecycle?.())
 
   const projectApi = {
     loadSessions,

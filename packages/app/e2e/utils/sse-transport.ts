@@ -62,7 +62,10 @@ export async function installSseTransport<T>(
   const server = new URL(options.server).origin
   await page.addInitScript(
     ({ server, retry }) => {
-      type Connection = SseConnectionRecord & { controller: ReadableStreamDefaultController<Uint8Array> }
+      type Connection = SseConnectionRecord & {
+        controller: ReadableStreamDefaultController<Uint8Array>
+        heartbeat?: number
+      }
       type ProbeWindow = Window & {
         __visualStabilityProbe?: { startedAt: number; markers: { at: number; label: string }[] }
       }
@@ -128,6 +131,7 @@ export async function installSseTransport<T>(
       const end = (mode: "close" | "disconnect" | "error", message?: string) => {
         const connection = current()
         if (!connection) throw new Error("SSE transport has no active connection")
+        if (connection.heartbeat !== undefined) window.clearInterval(connection.heartbeat)
         connection.endedAt = performance.now()
         connection.endedBy = mode
         if (message) connection.error = message
@@ -205,10 +209,21 @@ export async function installSseTransport<T>(
                   }),
                 ),
               )
+            // The real server sends a heartbeat data frame every 10s. Emulate it
+            // so the app's stream watchdog sees a live stream in long tests.
+            record.heartbeat = window.setInterval(() => {
+              if (record.endedAt !== undefined) return
+              const payload =
+                url.pathname === "/api/event"
+                  ? { id: `evt_mock_heartbeat_${id}`, type: "server.heartbeat", data: {} }
+                  : { payload: { id: `evt_mock_heartbeat_${id}`, type: "server.heartbeat", properties: {} } }
+              controller.enqueue(encoder.encode(frame(payload)))
+            }, 10_000)
             request.signal.addEventListener(
               "abort",
               () => {
                 if (record.endedAt !== undefined) return
+                if (record.heartbeat !== undefined) window.clearInterval(record.heartbeat)
                 record.endedAt = performance.now()
                 record.endedBy = "abort"
                 controller.error(request.signal.reason ?? new DOMException("The operation was aborted", "AbortError"))
@@ -218,6 +233,7 @@ export async function installSseTransport<T>(
           },
           cancel() {
             if (record.endedAt !== undefined) return
+            if (record.heartbeat !== undefined) window.clearInterval(record.heartbeat)
             record.endedAt = performance.now()
             record.endedBy = "disconnect"
           },

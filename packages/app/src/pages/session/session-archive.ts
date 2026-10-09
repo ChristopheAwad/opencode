@@ -1,4 +1,5 @@
 import { useNavigate } from "@solidjs/router"
+import { createSignal } from "solid-js"
 import { produce } from "solid-js/store"
 import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
 import { useLanguage } from "@/context/language"
@@ -11,6 +12,12 @@ import { useSessionKey } from "@/pages/session/session-layout"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { showToast } from "@/utils/toast"
 
+// Shared across useSessionArchive() instances: the mobile header, the command
+// palette, and the session page each call the hook, and all must see the same
+// in-flight archive actions. Keyed by session ID so different sessions can
+// archive concurrently.
+const [archiving, setArchiving] = createSignal<ReadonlySet<string>>(new Set())
+
 export function useSessionArchive() {
   const language = useLanguage()
   const navigate = useNavigate()
@@ -19,6 +26,14 @@ export function useSessionArchive() {
   const serverSync = useServerSync()
   const tabs = useTabs()
   const { params } = useSessionKey()
+  const archivingIDs = () => archiving()
+  const markArchiving = (sessionID: string, value: boolean) =>
+    setArchiving((current) => {
+      const next = new Set(current)
+      if (value) next.add(sessionID)
+      else next.delete(sessionID)
+      return next
+    })
 
   const navigateAfterRemoval = (sessionID: string, parentID?: string, nextSessionID?: string) => {
     if (params.id !== sessionID) return
@@ -40,35 +55,46 @@ export function useSessionArchive() {
   }
 
   const archive = async (sessionID: string) => {
+    if (archivingIDs().has(sessionID)) return
     const session = sync().session.get(sessionID)
     if (!session) return
-    if ((await sdk().protocol) !== "v1") return
+    markArchiving(sessionID, true)
+    try {
+      if ((await sdk().protocol) !== "v1") return
 
-    const sessions = sync().data.session ?? []
-    const index = sessions.findIndex((s) => s.id === sessionID)
-    const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
+      const sessions = sync().data.session ?? []
+      const index = sessions.findIndex((s) => s.id === sessionID)
+      const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
 
-    await sdk()
-      .client.session.update({ sessionID, directory: sdk().directory, time: { archived: Date.now() } })
-      .then(() => {
-        sync().set(
-          produce((draft) => {
-            const index = draft.session.findIndex((s) => s.id === sessionID)
-            if (index !== -1) draft.session.splice(index, 1)
-          }),
-        )
-        sync().session.evict(sessionID)
-        serverSync().homeSessions.remove(sessionID)
-        navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
-        notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [sessionID] })
-      })
-      .catch((err) => {
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: errorMessage(err, language.t("common.requestFailed")),
+      await sdk()
+        .client.session.update({ sessionID, directory: sdk().directory, time: { archived: Date.now() } })
+        .then(() => {
+          sync().set(
+            produce((draft) => {
+              const index = draft.session.findIndex((s) => s.id === sessionID)
+              if (index !== -1) draft.session.splice(index, 1)
+            }),
+          )
+          sync().session.evict(sessionID)
+          serverSync().homeSessions.remove(sessionID)
+          navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
+          notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [sessionID] })
         })
-      })
+        .catch((err) => {
+          showToast({
+            title: language.t("common.requestFailed"),
+            description: errorMessage(err, language.t("common.requestFailed")),
+          })
+        })
+    } finally {
+      markArchiving(sessionID, false)
+    }
   }
 
-  return { archive, navigateAfterRemoval }
+  return {
+    archive,
+    archiving: (sessionID?: string) =>
+      sessionID === undefined ? archivingIDs().size > 0 : archivingIDs().has(sessionID),
+    navigateAfterRemoval,
+  }
 }

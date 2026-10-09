@@ -1640,3 +1640,185 @@ describe("server session", () => {
     expect(ctx.store.data.session_status["session-0"]).toBeUndefined()
   })
 })
+
+describe("server session catch-up", () => {
+  const older = (created = 1) => userMessage("message-1", { time: { created } })
+  const prev = (created = 2) => userMessage("message-2", { time: { created } })
+  const next = (created = 3) => userMessage("message-3", { time: { created } })
+  const newest = (created = 4) => userMessage("message-4", { time: { created } })
+
+  test("pages backward until the previously loaded newest message is reached", async () => {
+    const client = messageClient(
+      response([{ info: prev(), parts: [] }, { info: older(), parts: [] }], "cursor-1"),
+      response([{ info: newest(), parts: [] }, { info: next(), parts: [] }], "cursor-2"),
+      response([{ info: prev(), parts: [] }, { info: older(), parts: [] }]),
+    )
+    const store = createServerSession(client)
+
+    await store.sync("child")
+    store.markStale()
+    await store.catchUp("child")
+
+    expect(store.data.message.child?.map((message) => message.id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+      "message-4",
+    ])
+    expect(client.requests).toHaveLength(3)
+    expect(client.requests[2]).toMatchObject({ before: "cursor-2", limit: 200 })
+  })
+
+  test("stops without paging when the refetched page already overlaps", async () => {
+    const client = messageClient(
+      response([{ info: prev(), parts: [] }, { info: older(), parts: [] }], "cursor-1"),
+      response([
+        { info: newest(), parts: [] },
+        { info: next(), parts: [] },
+        { info: prev(), parts: [] },
+      ]),
+    )
+    const store = createServerSession(client)
+
+    await store.sync("child")
+    store.markStale()
+    await store.catchUp("child")
+
+    expect(client.requests).toHaveLength(2)
+    expect(store.data.message.child?.map((message) => message.id)).toEqual(["message-2", "message-3", "message-4"])
+  })
+
+  test("bounds gap closing and clears the stale flag on a bound miss", async () => {
+    const pages = [response([{ info: userMessage("message-0", { time: { created: 0 } }), parts: [] }], "cursor-0")]
+    pages.push(response([{ info: userMessage("message-9", { time: { created: 9 } }), parts: [] }], "cursor-1"))
+    for (let index = 0; index < 10; index++) {
+      pages.push(
+        response(
+          [{ info: userMessage(`fresh-${index}`, { time: { created: 100 + index } }), parts: [] }],
+          `cursor-${index + 2}`,
+        ),
+      )
+    }
+    const client = messageClient(...pages)
+    const store = createServerSession(client)
+
+    await store.sync("child")
+    store.markStale()
+    await store.catchUp("child")
+
+    expect(client.requests).toHaveLength(12)
+    await store.sync("child")
+    expect(client.requests).toHaveLength(12)
+  })
+
+  test("routes a plain sync through catch-up while stale", async () => {
+    const client = messageClient(
+      response([{ info: prev(), parts: [] }], "cursor-1"),
+      response([{ info: next(), parts: [] }], "cursor-2"),
+      response([{ info: prev(), parts: [] }]),
+    )
+    const store = createServerSession(client)
+
+    await store.sync("child")
+    store.markStale()
+    await store.sync("child")
+
+    expect(client.requests).toHaveLength(3)
+    expect(store.data.message.child?.map((message) => message.id)).toEqual(["message-2", "message-3"])
+  })
+
+  test("clears the stale flag after a failure so the next sync does not refetch", async () => {
+    const prevMessage = prev()
+    let fail = false
+    let calls = 0
+    const client = {
+      session: {
+        get: async () => ({ data: session("child") }),
+        messages: async () => {
+          calls++
+          if (fail) throw new Error("boom")
+          return response([{ info: prevMessage, parts: [] }])
+        },
+      },
+    } as unknown as OpencodeClient
+    const store = createServerSession(client, { retry: retryImmediately })
+
+    await store.sync("child")
+    fail = true
+    store.markStale()
+    await expect(store.catchUpMany(["child"])).resolves.toBeUndefined()
+    const afterFailure = calls
+
+    await store.sync("child")
+    expect(calls).toBe(afterFailure)
+  })
+
+  test("keeps other sessions running when one catch-up fails", async () => {
+    const sessions: Record<string, Session> = { ok: session("ok"), gone: session("gone") }
+    const client = {
+      session: {
+        get: async (input: unknown) => ({ data: sessions[(input as { sessionID: string }).sessionID] }),
+        messages: async (input: unknown) => {
+          if ((input as { sessionID: string }).sessionID === "gone") throw new Error("gone")
+          return response([{ info: userMessage("ok-1", { time: { created: 1 }, sessionID: "ok" }), parts: [] }])
+        },
+      },
+    } as unknown as OpencodeClient
+    const store = createServerSession(client, { retry: retryImmediately })
+
+    await expect(store.catchUpMany(["gone", "ok"])).resolves.toBeUndefined()
+    expect(store.data.message.ok?.map((message) => message.id)).toEqual(["ok-1"])
+  })
+
+  test("waits for an in-flight sync before closing the gap", async () => {
+    const pending = deferredResponse()
+    const client = messageClient(
+      pending.promise,
+      response([{ info: next(), parts: [] }], "cursor-2"),
+      response([{ info: prev(), parts: [] }]),
+    )
+    const store = createServerSession(client)
+
+    const syncing = store.sync("child")
+    const catching = store.catchUp("child")
+    pending.resolve(response([{ info: prev(), parts: [] }], "cursor-1"))
+
+    await Promise.all([syncing, catching])
+
+    expect(client.requests).toHaveLength(3)
+    expect(store.data.message.child?.map((message) => message.id)).toEqual(["message-2", "message-3"])
+  })
+
+  test("joins an in-flight catch-up instead of running a second one", async () => {
+    const pending = deferredResponse()
+    const client = messageClient(
+      response([{ info: prev(), parts: [] }], "cursor-1"),
+      pending.promise,
+      response([{ info: prev(), parts: [] }]),
+    )
+    const store = createServerSession(client)
+
+    await store.sync("child")
+    store.markStale()
+    const catching = store.catchUp("child")
+    const joined = store.sync("child")
+    pending.resolve(response([{ info: next(), parts: [] }], "cursor-2"))
+
+    await Promise.all([catching, joined])
+
+    expect(client.requests).toHaveLength(3)
+    expect(store.data.message.child?.map((message) => message.id)).toEqual(["message-2", "message-3"])
+  })
+
+  test("tracks pinned session ids", () => {
+    const ctx = setup({ child: session("child") })
+
+    ctx.store.pin("child")
+    ctx.store.pin("other")
+    expect(ctx.store.pinnedIDs().sort()).toEqual(["child", "other"])
+    ctx.store.unpin("child")
+    expect(ctx.store.pinnedIDs()).toEqual(["other"])
+    ctx.store.unpin("other")
+    expect(ctx.store.pinnedIDs()).toEqual([])
+  })
+})

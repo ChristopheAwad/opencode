@@ -6,13 +6,37 @@ export const DEFAULT_SERVER_KEY = "opencode.settings.dat:defaultServerUrl"
 
 export async function installNativeShell(page: Page) {
   await page.addInitScript(() => {
+    const listeners: Record<string, Array<(...args: unknown[]) => void>> = {}
     Object.assign(window, {
+      __capacitorAppListeners: listeners,
       Capacitor: {
         isNativePlatform: () => true,
-        Plugins: { App: { addListener: () => ({ remove: async () => {} }) } },
+        Plugins: {
+          App: {
+            addListener: (event: string, callback: (...args: unknown[]) => void) => {
+              const list = (listeners[event] ??= [])
+              list.push(callback)
+              return {
+                remove: async () => {
+                  const index = list.indexOf(callback)
+                  if (index >= 0) list.splice(index, 1)
+                },
+              }
+            },
+          },
+        },
       },
     })
   })
+}
+
+export async function emitNativeAppState(page: Page, isActive: boolean) {
+  await page.evaluate((isActive) => {
+    const listeners = (
+      window as unknown as { __capacitorAppListeners?: Record<string, Array<(state: unknown) => void>> }
+    ).__capacitorAppListeners
+    for (const handler of [...(listeners?.appStateChange ?? [])]) handler({ isActive })
+  }, isActive)
 }
 
 export async function seedMobileServer(
@@ -44,9 +68,6 @@ export async function seedMobileServer(
   )
 }
 
-export function mockMobileServer(
-  page: Page,
-  config: Omit<MockServerConfig, "protocol"> & { protocol?: "v1" | "v2" },
-) {
+export function mockMobileServer(page: Page, config: Omit<MockServerConfig, "protocol"> & { protocol?: "v1" | "v2" }) {
   return mockOpenCodeServer(page, { protocol: "v2", ...config })
 }

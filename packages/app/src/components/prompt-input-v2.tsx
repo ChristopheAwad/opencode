@@ -408,6 +408,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       submit: {
         stopping,
         working,
+        submitting: submission.submitting,
         onSubmit: () => void submission.handleSubmit(new Event("submit")),
         onStop: () => void submission.abort(),
       },
@@ -624,7 +625,9 @@ function NativeModelPanel(props: { selection: PromptInputV2ComposerController["m
                 aria-pressed={isCurrent(item)}
                 class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-3 text-left text-14-regular text-text-strong hover:bg-surface-raised-base-hover"
                 classList={{ "bg-surface-raised-base-hover": isCurrent(item) }}
-                onClick={() => props.selection.set({ modelID: item.id, providerID: item.provider.id }, { recent: true })}
+                onClick={() =>
+                  props.selection.set({ modelID: item.id, providerID: item.provider.id }, { recent: true })
+                }
               >
                 <span class="min-w-0 truncate">{item.name}</span>
                 <span class="shrink-0 text-12-regular text-text-weak">{item.provider.name}</span>

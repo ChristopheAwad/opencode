@@ -1,17 +1,19 @@
 import { describe, expect, test } from "bun:test"
-import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, shouldRestartAfterForeground } from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
-describe("resumeStreamAfterPageShow", () => {
-  test("restarts a stream only after a back-forward cache restore", () => {
-    let starts = 0
-    const start = () => starts++
+describe("shouldRestartAfterForeground", () => {
+  test("restarts when the stream is not live", () => {
+    expect(shouldRestartAfterForeground({ live: false, lastFrameAt: 10, hiddenAt: 5 })).toBe(true)
+  })
 
-    resumeStreamAfterPageShow({ persisted: false } as PageTransitionEvent, start)
-    resumeStreamAfterPageShow({ persisted: true } as PageTransitionEvent, start)
+  test("keeps a live stream that received frames while hidden", () => {
+    expect(shouldRestartAfterForeground({ live: true, lastFrameAt: 10, hiddenAt: 5 })).toBe(false)
+  })
 
-    expect(starts).toBe(1)
+  test("restarts a live stream that went silent while hidden", () => {
+    expect(shouldRestartAfterForeground({ live: true, lastFrameAt: 5, hiddenAt: 5 })).toBe(true)
   })
 })
 

@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js"
+import { createMemo, createSignal } from "solid-js"
 import { produce } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { Dialog } from "@opencode-ai/ui/dialog"
@@ -22,6 +22,7 @@ export function DialogDeleteSession(props: { sessionID: string }) {
   const settings = useSettings()
   const sync = useSync()
   const sessionArchive = useSessionArchive()
+  const [deleting, setDeleting] = createSignal(false)
 
   const name = createMemo(
     () => sessionTitle(sync().session.get(props.sessionID)?.title) ?? language.t("command.session.new"),
@@ -92,8 +93,14 @@ export function DialogDeleteSession(props: { sessionID: string }) {
   }
 
   const handleDelete = async () => {
-    await deleteSession(props.sessionID)
-    dialog.close()
+    if (deleting()) return
+    setDeleting(true)
+    try {
+      const result = await deleteSession(props.sessionID)
+      if (result) dialog.close()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   if (settings.general.newLayoutDesigns())
@@ -109,7 +116,7 @@ export function DialogDeleteSession(props: { sessionID: string }) {
           <ButtonV2 variant="ghost" onClick={() => dialog.close()}>
             {language.t("common.cancel")}
           </ButtonV2>
-          <ButtonV2 variant="danger" onClick={handleDelete}>
+          <ButtonV2 variant={deleting() ? "loading" : "danger"} disabled={deleting()} onClick={handleDelete}>
             {language.t("session.delete.button")}
           </ButtonV2>
         </DialogFooter>
@@ -120,15 +127,13 @@ export function DialogDeleteSession(props: { sessionID: string }) {
     <Dialog title={language.t("session.delete.title")} fit>
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-text-strong">
-            {language.t("session.delete.confirm", { name: name() })}
-          </span>
+          <span class="text-14-regular text-text-strong">{language.t("session.delete.confirm", { name: name() })}</span>
         </div>
         <div class="flex justify-end gap-2">
           <Button variant="ghost" size="large" onClick={() => dialog.close()}>
             {language.t("common.cancel")}
           </Button>
-          <Button variant="primary" size="large" onClick={handleDelete}>
+          <Button variant="primary" size="large" disabled={deleting()} onClick={handleDelete}>
             {language.t("session.delete.button")}
           </Button>
         </div>

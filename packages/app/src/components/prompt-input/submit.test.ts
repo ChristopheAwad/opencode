@@ -33,6 +33,7 @@ const promptInputs: unknown[] = []
 const sentCommands: unknown[] = []
 const commands: Array<{ name: string }> = []
 let serverSessionSyncs = 0
+const interrupts: unknown[] = []
 
 let params: { id?: string } = {}
 let search: { draftId?: string } = {}
@@ -40,6 +41,8 @@ let selected = "/repo/worktree-a"
 let variant: string | undefined
 let permissionServer = "server-a"
 let createSessionGate: Promise<void> | undefined
+let promptGate: Promise<void> | undefined
+let createSessionError: Error | undefined
 
 let promptValue: Prompt = [{ type: "text", content: "ls", start: 0, end: 2 }]
 const [promptStore, setPromptStore] = createStore<PromptStore>({
@@ -76,6 +79,7 @@ const clientFor = (directory: string) => {
     api: {
       session: {
         create: async (input: (typeof sessionCreateInputs)[number]) => {
+          if (createSessionError) throw createSessionError
           await createSessionGate
           const location = input.location?.directory ?? directory
           createdSessions.push(location)
@@ -93,8 +97,13 @@ const clientFor = (directory: string) => {
           }
         },
         prompt: async (input: unknown) => {
+          await promptGate
           sentPrompts.push(directory)
           promptInputs.push(input)
+          return { data: undefined }
+        },
+        interrupt: async (input: unknown) => {
+          interrupts.push(input)
           return { data: undefined }
         },
         command: async (input: unknown) => {
@@ -300,6 +309,9 @@ beforeEach(() => {
   variant = undefined
   permissionServer = "server-a"
   createSessionGate = undefined
+  promptGate = undefined
+  createSessionError = undefined
+  interrupts.length = 0
   serverSessionSyncs = 0
   for (const key of Object.keys(storedSessions)) delete storedSessions[key]
 })
@@ -594,5 +606,95 @@ describe("prompt submit worktree selection", () => {
     expect(storedSessions["/repo/worktree-a"]).toHaveLength(1)
     expect(storedSessions["/repo/worktree-a"]?.[0]).toMatchObject({ id: "session-1", title: "New session 1" })
     expect(optimisticSeeded).toEqual([true])
+  })
+})
+
+describe("prompt submit pending guard", () => {
+  const createSubmit = (overrides: Partial<Parameters<typeof createPromptSubmit>[0]> = {}) =>
+    createPromptSubmit({
+      prompt,
+      info: () => undefined,
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      ...overrides,
+    })
+
+  const event = () => ({ preventDefault: () => undefined }) as unknown as Event
+
+  test("ignores a second new-session submit while the first is pending", async () => {
+    let release = () => {}
+    createSessionGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const submit = createSubmit()
+
+    const first = submit.handleSubmit(event())
+    expect(submit.submitting()).toBe(true)
+    const second = submit.handleSubmit(event())
+    expect(submit.submitting()).toBe(true)
+    release()
+    await Promise.all([first, second])
+
+    expect(createdSessions).toEqual(["/repo/main"])
+    expect(sentPrompts).toEqual(["/repo/main"])
+    expect(submit.submitting()).toBe(false)
+  })
+
+  test("releases the guard after a failed new-session create", async () => {
+    createSessionError = new Error("boom")
+    const submit = createSubmit()
+
+    await submit.handleSubmit(event())
+    expect(createdSessions).toEqual([])
+    expect(submit.submitting()).toBe(false)
+
+    createSessionError = undefined
+    await submit.handleSubmit(event())
+    expect(createdSessions).toEqual(["/repo/main"])
+  })
+
+  test("holds the guard until a follow-up send settles and ignores the second tap", async () => {
+    params = { id: "session-1" }
+    let release = () => {}
+    promptGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const submit = createSubmit({ info: () => ({ id: "session-1" }) })
+
+    const first = submit.handleSubmit(event())
+    expect(submit.submitting()).toBe(true)
+    const second = submit.handleSubmit(event())
+    expect(submit.submitting()).toBe(true)
+    release()
+    await Promise.all([first, second])
+
+    expect(promptInputs).toHaveLength(1)
+    expect(interrupts).toEqual([])
+    expect(submit.submitting()).toBe(false)
+  })
+
+  test("does not hold the guard through the queue path", async () => {
+    params = { id: "session-1" }
+    const queued: unknown[] = []
+    const submit = createSubmit({
+      info: () => ({ id: "session-1" }),
+      shouldQueue: () => true,
+      onQueue: (draft) => queued.push(draft),
+    })
+
+    await submit.handleSubmit(event())
+
+    expect(queued).toHaveLength(1)
+    expect(submit.submitting()).toBe(false)
   })
 })

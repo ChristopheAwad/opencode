@@ -1,5 +1,6 @@
 import { createMemo, Show } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
@@ -10,6 +11,7 @@ import { DialogRenameSession } from "@/components/dialog-rename-session"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
+import { useSessionArchive } from "@/pages/session/session-archive"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { sessionTitle } from "@/utils/session-title"
 
@@ -22,6 +24,7 @@ export function MobileSessionHeader(props: {
   const dialog = useDialog()
   const language = useLanguage()
   const sync = useSync()
+  const sessionArchive = useSessionArchive()
   const { params } = useSessionLayout()
 
   const title = createMemo(
@@ -69,6 +72,15 @@ export function MobileSessionHeader(props: {
           <SessionProgressIndicatorV2 class="size-4" />
         </span>
       </Show>
+      <Show when={sessionArchive.archiving(params.id)}>
+        <span
+          data-component="mobile-session-archive-pending"
+          class="shrink-0 flex size-5 items-center justify-center"
+          aria-busy="true"
+        >
+          <Spinner class="size-4" />
+        </span>
+      </Show>
       <div class="shrink-0 flex items-center gap-0.5 rounded-lg border border-border-weak-base p-0.5">
         <button
           type="button"
@@ -114,7 +126,10 @@ export function MobileSessionHeader(props: {
               </MenuV2.Item>
             </Show>
             <MenuV2.Item onSelect={() => command.trigger("session.export")}>{language.t("common.export")}</MenuV2.Item>
-            <MenuV2.Item onSelect={() => command.trigger("session.archive")}>
+            <MenuV2.Item
+              disabled={sessionArchive.archiving(params.id)}
+              onSelect={() => command.trigger("session.archive")}
+            >
               {language.t("common.archive")}
             </MenuV2.Item>
             <MenuV2.Separator />

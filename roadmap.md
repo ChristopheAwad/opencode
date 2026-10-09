@@ -26,7 +26,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Files: `packages/mobile/`, `packages/app/src/`, `packages/app/vendor/` (vendored `@opencode-ai/client` upgrade), `packages/client/`
 - Goal: feature parity for daily phone use and true resume.
 - Scope:
-  - Durable per-session replay catch-up via `GET /api/session/:id/history` and `GET /api/session/:id/event?after=` (requires updating the vendored client; the pinned `1.17.13` tarball has no history/events endpoints).
+  - Durable per-session replay catch-up via `GET /api/session/:id/history` and `GET /api/session/:id/event?after=`. Finding 2026-10-09: the phone runs protocol v1 and the replay endpoints only carry `session.next.*` events from V2-runtime sessions, so replay returns nothing for the phone's sessions today. This needs server/protocol work (widen replay to v1 durable aggregates) or a session-runtime migration before the vendored client upgrade can unlock it.
   - Settled/idle state saved across app restarts; replay cursor cached per session.
   - Feature gaps: edit-and-resend, reasoning display option, subagent drill-down, skill-call display.
   - Mobile composer polish: attachments and file references.
@@ -58,14 +58,26 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
   - Settle = archive shortcut (#5), auto-settle/archive on commit (#14).
   - One session action menu shared by the header and long-press (#8, #11 residual); context info tap and Session/Changes context redesign (#15 residual, #23).
   - New session/project: prompt for a known project (#9), "No Project" scratch project (#13), friendlier directory navigator (#10).
-  - Sync and feedback: focus/visibility resync (fixes the web tab-switch staleness too), pending/syncing feedback when an action is tapped on a slow network (#6, #17).
+  - Sync and feedback: moved to R5 (#6, #17).
   - Composer: Enter inserts a newline instead of sending (#22).
   - Model favorites (#3).
   - Native design pass: buttons, icons, navigation, and animation (#21).
 - Out of scope: iOS, push notifications, durable replay (R2), true native rewrite.
 
+## R5 — opencode mobile app: sync hardening (background, reconnect, feedback)
+
+- Status: in progress
+- Tier: 2
+- Effort: L
+- Depends on: R1
+- Files: `packages/app/src/utils/stream-watchdog.ts` (new), `packages/app/src/utils/app-lifecycle.ts` (new), `packages/app/src/context/server-sdk.tsx`, `packages/app/src/context/server-sync.tsx`, `packages/app/src/context/server-session.ts`, `packages/app/src/components/prompt-input/`, `packages/app/src/components/prompt-input-v2.tsx`, `packages/app/src/components/dialog-delete-session.tsx`, `packages/app/src/pages/home/`, `packages/app/src/pages/session/session-archive.ts`, `packages/app/src/components/mobile-session-header.tsx`, `packages/session-ui/src/v2/components/prompt-input/`, `packages/app/e2e/`
+- Goal: after background, disconnect, or slow network, the phone shows current data, recovers a dead stream, closes message gaps with no visible hole, and shows pending feedback with no duplicate actions.
+- Scope: stream watchdog and foreground restart (Capacitor lifecycle plus web visibility); single-flight resync of active sessions, home index, bootstrap, and active directories; open-session catch-up with gap closing bounded at 10 pages; pending and disabled states for new-session send, follow-up guard, archive, and delete.
+- Out of scope: durable event replay and persisted cursor (R2), push notifications, iOS, desktop-only chrome changes.
+
 ## Implementation order
 
-1. R3 (next): M6b Waves B and C.
-2. R4: mobile daily-use features.
-3. R2: parity and resume hardening.
+1. R5 (in progress): sync hardening.
+2. R3: M6b Waves B and C.
+3. R4: mobile daily-use features.
+4. R2: parity and resume hardening.

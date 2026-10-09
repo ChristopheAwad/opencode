@@ -2,6 +2,7 @@ import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "so
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
@@ -259,6 +260,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             mode={state.mode}
             native={props.native}
             stopping={view.submit.stopping()}
+            pending={view.submit.submitting?.() ?? false}
             disabled={!props.controller.canSubmit()}
             sendLabel={i18n.t("ui.promptInput.send")}
             stopLabel={i18n.t("ui.promptInput.stop")}
@@ -677,6 +679,7 @@ export function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
   native?: boolean
   stopping: boolean
+  pending?: boolean
   disabled: boolean
   sendLabel: string
   stopLabel: string
@@ -684,37 +687,49 @@ export function PromptInputV2SubmitButton(props: {
   onStop: () => void
 }) {
   return (
-    <TooltipV2
-      placement="top"
-      class="shrink-0"
-      inactive={!props.stopping && props.disabled}
-      value={props.stopping ? props.stopLabel : props.sendLabel}
-    >
-      <IconButton
-        data-action="prompt-submit"
-        type="button"
-        disabled={!props.stopping && props.disabled}
-        tabIndex={props.mode === "normal" ? undefined : -1}
-        icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
-        variant="primary"
-        class="shrink-0 rounded-md p-[6px] text-v2-icon-icon-muted shadow-[var(--v2-elevation-button-contrast)] disabled:opacity-50"
-        classList={{ "size-9": !!props.native, "size-7": !props.native }}
-        style={{
-          "background-image":
-            "linear-gradient(180deg,var(--v2-alpha-light-20) 0%,var(--v2-alpha-light-0) 100%),linear-gradient(90deg,var(--v2-background-bg-contrast) 0%,var(--v2-background-bg-contrast) 100%)",
-        }}
-        aria-label={props.stopping ? props.stopLabel : props.sendLabel}
-        onClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          if (props.stopping) {
-            props.onStop()
-            return
-          }
-          props.onSubmit()
-        }}
-      />
-    </TooltipV2>
+    <div class="relative shrink-0">
+      <TooltipV2
+        placement="top"
+        class="shrink-0"
+        inactive={!props.stopping && (props.disabled || !!props.pending)}
+        value={props.stopping ? props.stopLabel : props.sendLabel}
+      >
+        <IconButton
+          data-action="prompt-submit"
+          type="button"
+          disabled={!props.stopping && (props.disabled || !!props.pending)}
+          tabIndex={props.mode === "normal" ? undefined : -1}
+          icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
+          variant="primary"
+          class="shrink-0 rounded-md p-[6px] text-v2-icon-icon-muted shadow-[var(--v2-elevation-button-contrast)] disabled:opacity-50"
+          classList={{ "size-9": !!props.native, "size-7": !props.native, "opacity-0": !!props.pending }}
+          aria-busy={props.pending ? "true" : undefined}
+          style={{
+            "background-image":
+              "linear-gradient(180deg,var(--v2-alpha-light-20) 0%,var(--v2-alpha-light-0) 100%),linear-gradient(90deg,var(--v2-background-bg-contrast) 0%,var(--v2-background-bg-contrast) 100%)",
+          }}
+          aria-label={props.stopping ? props.stopLabel : props.sendLabel}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (props.stopping) {
+              props.onStop()
+              return
+            }
+            props.onSubmit()
+          }}
+        />
+      </TooltipV2>
+      <Show when={props.pending}>
+        <span
+          data-component="prompt-submit-pending"
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0 flex items-center justify-center"
+        >
+          <Spinner class="size-4" />
+        </span>
+      </Show>
+    </div>
   )
 }
 

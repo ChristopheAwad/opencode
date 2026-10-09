@@ -37,6 +37,7 @@ export type PromptInputV2ViewConfig = {
   submit: {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
+    submitting?: Accessor<boolean>
     onSubmit: () => void
     onStop: () => void
   }
@@ -328,6 +329,7 @@ export function createPromptInputV2Controller(input: {
       draft.removeAttachment(id)
     },
     canSubmit() {
+      if (input.view.submit.submitting?.()) return false
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
       if (persisted.context.items.some((item) => !!item.comment?.trim())) return true
@@ -358,6 +360,7 @@ export function createPromptInputV2Controller(input: {
       dispatch({ type: "mode.normal" })
     },
     submit() {
+      if (input.view.submit.submitting?.()) return
       input.view.submit.onSubmit()
       dispatch({ type: "popover.close" })
     },

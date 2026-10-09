@@ -4,7 +4,7 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useQuery } from "@tanstack/solid-query"
 import { DateTime } from "luxon"
 import { type Accessor, createEffect, createMemo, createRoot, type JSX, startTransition } from "solid-js"
-import { produce } from "solid-js/store"
+import { createStore, produce } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import {
   loadHomeSessionIndex,
@@ -43,6 +43,7 @@ export function createHomeSessionsController(home: HomeController) {
   const dialog = useDialog()
   const language = useLanguage()
   const native = isNativeShell()
+  const [archivePending, setArchivePending] = createStore<Record<string, boolean | undefined>>({})
   const projectDirectories = createMemo(() => {
     const project = home.project.selected()
     if (!project) return home.project.list().flatMap(directories)
@@ -206,36 +207,43 @@ export function createHomeSessionsController(home: HomeController) {
         })
       },
       archive: async (session: Session) => {
+        if (archivePending[session.id]) return
         const conn = home.server.focused()
         const ctx = home.server.focusedContext()
         if (!conn || !ctx) return
         const [, setStore] = ctx.sync.child(session.directory)
-        if ((await ctx.sdk.protocol) !== "v1") return
-        await archiveHomeSession({
-          server: ServerConnection.key(conn),
-          session,
-          archive: (sessionID) =>
-            ctx.sdk.client.session.update({
-              sessionID,
-              directory: session.directory,
-              time: { archived: Date.now() },
-            }),
-          remove: () => {
-            setStore(
-              produce((draft) => {
-                const match = Binary.search(draft.session, session.id, (item) => item.id)
-                if (match.found) draft.session.splice(match.index, 1)
+        setArchivePending(session.id, true)
+        try {
+          if ((await ctx.sdk.protocol) !== "v1") return
+          await archiveHomeSession({
+            server: ServerConnection.key(conn),
+            session,
+            archive: (sessionID) =>
+              ctx.sdk.client.session.update({
+                sessionID,
+                directory: session.directory,
+                time: { archived: Date.now() },
               }),
-            )
-            homeSessions().remove(session.id)
-          },
-          onError: (cause) =>
-            showToast({
-              title: language.t("common.requestFailed"),
-              description: errorMessage(cause, language.t("common.requestFailed")),
-            }),
-        })
+            remove: () => {
+              setStore(
+                produce((draft) => {
+                  const match = Binary.search(draft.session, session.id, (item) => item.id)
+                  if (match.found) draft.session.splice(match.index, 1)
+                }),
+              )
+              homeSessions().remove(session.id)
+            },
+            onError: (cause) =>
+              showToast({
+                title: language.t("common.requestFailed"),
+                description: errorMessage(cause, language.t("common.requestFailed")),
+              }),
+          })
+        } finally {
+          setArchivePending(session.id, false)
+        }
       },
+      archivePending: (sessionID: string) => !!archivePending[sessionID],
     },
     tab: {
       isOpen: (record: HomeSessionRecord) =>

@@ -41,6 +41,7 @@ import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { Select } from "@opencode-ai/ui/select"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { ModelSelectorPopover, ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
@@ -1198,7 +1199,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return permission.isAutoAccepting(id, sdk().directory)
   })
 
-  const { abort, handleSubmit } =
+  const submission =
     props.submission ??
     createPromptSubmit({
       prompt,
@@ -1228,6 +1229,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       onSubmit: props.onSubmit,
       model: props.controls.model.selection,
     })
+  const { abort, handleSubmit } = submission
+  const submitting = () => submission.submitting?.() ?? false
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "u") {
@@ -1574,19 +1577,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               }}
             />
 
-            <div class="flex items-center gap-1 pointer-events-auto">
-              <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
+            <div class="relative flex items-center gap-1 pointer-events-auto">
+              <Tooltip placement="top" inactive={!working() && (blank() || submitting())} value={tip()}>
                 <IconButton
                   data-action="prompt-submit"
                   type="submit"
-                  disabled={!working() && blank()}
+                  disabled={!working() && (blank() || submitting())}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                   variant="primary"
                   class="size-8"
+                  classList={{ "opacity-0": submitting() }}
+                  aria-busy={submitting() ? "true" : undefined}
                   aria-label={stopping() ? language.t("prompt.action.stop") : language.t("prompt.action.send")}
                 />
               </Tooltip>
+              <Show when={submitting()}>
+                <span
+                  data-component="prompt-submit-pending"
+                  aria-hidden="true"
+                  class="pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                  <Spinner class="size-4" />
+                </span>
+              </Show>
             </div>
           </div>
 

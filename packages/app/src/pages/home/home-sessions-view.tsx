@@ -54,6 +54,7 @@ export type HomeSessionsViewProps = {
   onCreateSession: () => void
   onOpenSession: (session: Session, options?: OpenSessionOptions) => void
   onArchiveSession: (session: Session) => Promise<void>
+  archivePending: (sessionID: string) => boolean
   onSetHoverTarget: (element: HTMLElement) => void
   onSetThumbTrack: (element: HTMLDivElement) => void
   onSetContent: (element: HTMLDivElement) => void
@@ -465,8 +466,12 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
               data-action="home-session-archive"
               variant="ghost-muted"
               size="large"
-              icon={<IconV2 name="archive" />}
+              icon={
+                props.archivePending(props.record.session.id) ? <Spinner class="size-4" /> : <IconV2 name="archive" />
+              }
+              aria-busy={props.archivePending(props.record.session.id) ? "true" : undefined}
               aria-label={props.language.t("common.archive")}
+              disabled={props.archivePending(props.record.session.id)}
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()

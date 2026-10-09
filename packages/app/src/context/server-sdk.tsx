@@ -13,12 +13,13 @@ import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
-import {
-  createReconnectPolicy,
-  defaultWakeSubscription,
-  waitForRetry,
-  type WakeSubscription,
-} from "@/utils/reconnect"
+import { createReconnectPolicy, defaultWakeSubscription, waitForRetry, type WakeSubscription } from "@/utils/reconnect"
+import { createStreamWatchdog } from "@/utils/stream-watchdog"
+import { subscribeAppLifecycle } from "@/utils/app-lifecycle"
+
+// Three missed 10s v1 heartbeats before a silent stream is treated as dead.
+const STREAM_STALE_MS = 35_000
+const STREAM_WATCHDOG_TICK_MS = 5_000
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -165,9 +166,9 @@ function currentDeltaFragment(event: CurrentDelta) {
   return event.type === "session.compaction.delta" ? event.data.text : event.data.delta
 }
 
-export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () => unknown) {
-  if (!event.persisted) return
-  start()
+export function shouldRestartAfterForeground(input: { live: boolean; lastFrameAt: number; hiddenAt: number }) {
+  if (!input.live) return true
+  return input.lastFrameAt <= input.hiddenAt
 }
 
 type ServerEventEmitter = ReturnType<typeof createGlobalEmitter<{ [key: string]: ServerEvent }>>
@@ -193,6 +194,7 @@ type ServerSDKBase = {
     on: ServerEventEmitter["on"]
     listen: ServerEventEmitter["listen"]
     start: () => Promise<void> | undefined
+    restart: () => void
   }
   createClient: (
     opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">,
@@ -283,6 +285,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   let run: Promise<void> | undefined
   let started = false
   let generation = 0
+  let lastFrameAt = Date.now()
+  let hiddenAt = Date.now()
+  let appActive = true
+  let wasHidden = false
+  const markHidden = () => {
+    wasHidden = true
+    hiddenAt = Date.now()
+  }
 
   const start = () => {
     if (started) return run
@@ -293,21 +303,33 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       if (previous) await previous
       // oxlint-disable-next-line no-unmodified-loop-condition -- `started` is set to false by stop() which also aborts; both flags are checked to allow graceful exit
       while (!abort.signal.aborted && started && generation === active) {
-        attempt = new AbortController()
+        const currentAttempt = new AbortController()
+        attempt = currentAttempt
         const onAbort = () => {
-          attempt?.abort()
+          currentAttempt.abort()
         }
         abort.signal.addEventListener("abort", onAbort)
         setStream({ state: "connecting", attempt: 0 })
         let healthy = false
+        let watchdog: ReturnType<typeof createStreamWatchdog> | undefined
         try {
           const kind = await protocol
+          if (kind === "v1") {
+            watchdog = createStreamWatchdog({
+              staleMs: STREAM_STALE_MS,
+              tickMs: STREAM_WATCHDOG_TICK_MS,
+              isPaused: () => !appActive || document.visibilityState === "hidden",
+              onStale: () => currentAttempt.abort(),
+            })
+          }
           const events =
             kind === "v1"
-              ? (await eventSdk.global.event({ signal: attempt.signal })).stream
-              : eventApi.event.subscribe({ signal: attempt.signal })
+              ? (await eventSdk.global.event({ signal: currentAttempt.signal })).stream
+              : eventApi.event.subscribe({ signal: currentAttempt.signal })
           let yielded = Date.now()
           for await (const event of events) {
+            lastFrameAt = Date.now()
+            watchdog?.touch()
             if (!healthy) {
               healthy = true
               policy.reset()
@@ -325,7 +347,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             await wait(0)
           }
         } catch (error) {
-          if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
+          if (!isStreamClosed(error, currentAttempt.signal) && !streamErrorLogged) {
             streamErrorLogged = true
             console.error("[global-sdk] event stream failed", {
               url: server.http.url,
@@ -334,6 +356,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             })
           }
         } finally {
+          watchdog?.dispose()
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined
         }
@@ -358,12 +381,41 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     attempt?.abort()
   }
 
+  const restart = () => {
+    stop()
+    void start()
+  }
+
+  const ensureLiveAfterForeground = () => {
+    if (!started) {
+      void start()
+      return
+    }
+    if (!wasHidden) return
+    if (!shouldRestartAfterForeground({ live: stream().state === "live", lastFrameAt, hiddenAt })) return
+    restart()
+  }
+
+  let disposeLifecycle: (() => void) | undefined
   onMount(() => {
-    makeEventListener(window, "pagehide", stop)
-    makeEventListener(window, "pageshow", (event) => resumeStreamAfterPageShow(event, start))
+    makeEventListener(window, "pagehide", () => {
+      markHidden()
+      stop()
+    })
+    disposeLifecycle = subscribeAppLifecycle({
+      active: () => {
+        appActive = true
+        ensureLiveAfterForeground()
+      },
+      inactive: () => {
+        appActive = false
+        markHidden()
+      },
+    })
   })
 
   onCleanup(() => {
+    disposeLifecycle?.()
     stop()
     abort.abort()
     flush()
@@ -399,6 +451,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
       start,
+      restart,
     },
     createClient(opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">) {
       return createSdkForServer({

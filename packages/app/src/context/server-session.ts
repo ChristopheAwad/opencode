@@ -29,6 +29,8 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const initialMessagePageSize = 20
 const historyMessagePageSize = 200
+const catchUpPageSize = 50
+const catchUpMaxPages = 10
 const sessionInfoLimit = 2_048
 const emptyIDs: ReadonlySet<string> = new Set()
 
@@ -142,6 +144,14 @@ function runInflight(map: Map<string, Promise<void>>, key: string, task: () => P
   return promise
 }
 
+// A fetched page bridges the gap once its oldest message is at or below the
+// newest message loaded before the disconnect.
+function reachedCatchUpPage(page: MessagePage, target: Message) {
+  const oldest = page.session[0]
+  if (!oldest) return false
+  return compareMessages(oldest, target) <= 0
+}
+
 function merge<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
   const items = new Map(a.map((item) => [item.id, item] as const))
   for (const item of b) items.set(item.id, item)
@@ -210,6 +220,8 @@ export function createServerSession(
   })
   const requests = new Map<string, Promise<Session>>()
   const inflight = new Map<string, Promise<void>>()
+  const catchUps = new Set<Promise<void>>()
+  const stale = new Set<string>()
   const inflightTodo = new Map<string, Promise<void>>()
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const v2 = createV2SessionReducer()
@@ -485,6 +497,7 @@ export function createServerSession(
       clearOptimistic(sessionID)
       requests.delete(sessionID)
       inflight.delete(sessionID)
+      stale.delete(sessionID)
       inflightTodo.delete(sessionID)
       messageLoads.delete(sessionID)
       v2.clear(sessionID)
@@ -819,6 +832,7 @@ export function createServerSession(
         mode !== "prepend",
       )
       applied = true
+      return page
     } finally {
       if (!applied && generations.get(sessionID) === active && messageLoads.get(sessionID) === load) {
         for (const messageID of load.orphanParents) {
@@ -833,18 +847,60 @@ export function createServerSession(
     }
   }
 
+  const loadSession = async (
+    sessionID: string,
+    options?: { force?: boolean; messageLimit?: number; gapClose?: boolean },
+  ) => {
+    const cached = data.message[sessionID] !== undefined && meta.limit[sessionID] !== undefined
+    if (cached && data.info[sessionID] && !options?.force) return
+    const previousNewest = options?.gapClose ? data.message[sessionID]?.at(-1) : undefined
+    const [page] = await Promise.all([
+      cached && !options?.force
+        ? Promise.resolve(undefined)
+        : loadMessages(sessionID, options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize),
+      resolve(sessionID, options),
+    ])
+    if (!options?.gapClose) return
+    if (!previousNewest || !page || page.complete) return
+    if (reachedCatchUpPage(page, previousNewest)) return
+    for (let index = 0; index < catchUpMaxPages; index++) {
+      const cursor = meta.cursor[sessionID]
+      if (!cursor) return
+      const older = await loadMessages(sessionID, historyMessagePageSize, cursor, "prepend")
+      if (!older) return
+      if (older.complete || reachedCatchUpPage(older, previousNewest)) return
+    }
+  }
+
+  const catchUp = (sessionID: string) => {
+    touch(sessionID)
+    const pending = inflight.get(sessionID)
+    if (pending && catchUps.has(pending)) return pending
+    const run = (pending ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => loadSession(sessionID, { force: true, gapClose: true, messageLimit: catchUpPageSize }))
+      .finally(() => stale.delete(sessionID))
+    catchUps.add(run)
+    inflight.set(sessionID, run)
+    const cleanup = () => {
+      catchUps.delete(run)
+      if (inflight.get(sessionID) === run) inflight.delete(sessionID)
+    }
+    void run.then(cleanup, cleanup)
+    return run
+  }
+
+  const catchUpMany = (sessionIDs: string[]) =>
+    Promise.allSettled(sessionIDs.map((sessionID) => catchUp(sessionID))).then(() => {})
+
+  const markStale = () => {
+    for (const sessionID of Object.keys(data.message)) stale.add(sessionID)
+  }
+
   const sync = (sessionID: string, options?: { force?: boolean; messageLimit?: number }) => {
     touch(sessionID)
-    return runInflight(inflight, sessionID, async () => {
-      const cached = data.message[sessionID] !== undefined && meta.limit[sessionID] !== undefined
-      if (cached && data.info[sessionID] && !options?.force) return
-      await Promise.all([
-        resolve(sessionID, options),
-        cached && !options?.force
-          ? Promise.resolve()
-          : loadMessages(sessionID, options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize),
-      ])
-    })
+    if (!options?.force && stale.has(sessionID)) return catchUp(sessionID)
+    return runInflight(inflight, sessionID, () => loadSession(sessionID, options))
   }
 
   const prefetch = async (sessionID: string, limit: number) => {
@@ -855,7 +911,9 @@ export function createServerSession(
       (meta.complete[sessionID] || (data.message[sessionID]?.length ?? 0) >= limit)
     )
       return
-    await runInflight(inflight, sessionID, () => loadMessages(sessionID, limit))
+    await runInflight(inflight, sessionID, async () => {
+      await loadMessages(sessionID, limit)
+    })
   }
 
   const eventSessionID = (event: { type: string; properties?: unknown }) => {
@@ -1308,6 +1366,10 @@ export function createServerSession(
       },
     },
     sync,
+    catchUp,
+    catchUpMany,
+    markStale,
+    pinnedIDs: () => [...pinned.keys()],
     prefetch,
     shouldPrefetch(sessionID: string, limit: number) {
       if (data.message[sessionID] === undefined) return true

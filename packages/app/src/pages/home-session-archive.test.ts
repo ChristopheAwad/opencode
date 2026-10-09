@@ -49,3 +49,38 @@ test("reports archive failures without removing the session", async () => {
   expect(error).toBe(failure)
   expect(removed).toBe(false)
 })
+
+test("coalesces duplicate archive taps into one request", async () => {
+  const gate = Promise.withResolvers<void>()
+  let calls = 0
+  let removed = 0
+
+  const first = archiveHomeSession({
+    server: remote,
+    session: { id: "ses_duplicate", directory: "/workspace" },
+    archive: () => {
+      calls++
+      return gate.promise
+    },
+    remove: () => {
+      removed++
+    },
+  })
+  const second = archiveHomeSession({
+    server: remote,
+    session: { id: "ses_duplicate", directory: "/workspace" },
+    archive: () => {
+      calls++
+      return gate.promise
+    },
+    remove: () => {
+      removed++
+    },
+  })
+
+  gate.resolve()
+  await Promise.all([first, second])
+
+  expect(calls).toBe(1)
+  expect(removed).toBe(1)
+})

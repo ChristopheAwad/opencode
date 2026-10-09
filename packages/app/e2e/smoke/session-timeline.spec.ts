@@ -3,6 +3,7 @@ import { base64Encode } from "@opencode-ai/core/util/encode"
 import { fixture, pageMessages } from "./session-timeline.fixture"
 import { trackPageErrors, expectNoSmokeErrors } from "../utils/errors"
 import { mockOpenCodeServer } from "../utils/mock-server"
+import { installSseTransport } from "../utils/sse-transport"
 import { APP_READY_TIMEOUT, expectAppVisible, expectSessionTitle } from "../utils/waits"
 
 const forbiddenText = ["Load details", "Show earlier steps"]
@@ -354,6 +355,10 @@ test.describe("smoke: session timeline", () => {
 })
 
 async function configureSmokePage(page: Page, directory: string) {
+  // The raw mock SSE body ends immediately, which makes the app reconnect in a
+  // loop. Install the fetch-level transport so the stream stays open and emits
+  // heartbeats like the real server.
+  await installSseTransport(page, { server: "http://127.0.0.1:4096" })
   await page.addInitScript(() => {
     localStorage.setItem(
       "settings.v3",

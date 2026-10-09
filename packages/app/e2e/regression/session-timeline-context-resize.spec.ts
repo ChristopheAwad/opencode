@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
+import { installSseTransport } from "../utils/sse-transport"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 import {
   analyzeVisualObservations,
@@ -51,7 +52,7 @@ test.describe("regression: session timeline context group resize", () => {
       ...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(),
       ...turn(10, true, "running"),
     ])
-    await configurePage(page)
+    const transport = await configurePage(page)
 
     await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
     await expectSessionTitle(page, title)
@@ -75,7 +76,7 @@ test.describe("regression: session timeline context group resize", () => {
     })
     await startVisualProbe(page, regions)
     for (const [index, delay] of [120, 350, 80, 500].entries()) {
-      events.push({
+      const event = {
         directory,
         payload: {
           type: "message.part.updated",
@@ -93,7 +94,8 @@ test.describe("regression: session timeline context group resize", () => {
             ),
           },
         },
-      })
+      }
+      await transport.send(event)
       await page.waitForTimeout(delay)
     }
 
@@ -122,6 +124,10 @@ test.describe("regression: session timeline context group resize", () => {
 })
 
 async function configurePage(page: Page) {
+  // The raw mock SSE body ends immediately, which makes the app reconnect in a
+  // loop. Install the fetch-level transport so the stream stays open and emits
+  // heartbeats like the real server.
+  const transport = await installSseTransport(page, { server: "http://127.0.0.1:4096" })
   await page.addInitScript(() => {
     localStorage.setItem(
       "settings.v3",
@@ -134,6 +140,7 @@ async function configurePage(page: Page) {
       }),
     )
   })
+  return transport
 }
 
 async function sampleExpansion(page: Page) {
