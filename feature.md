@@ -5,7 +5,10 @@ plan. Read it top to bottom before touching code.
 
 ## Status
 
-- R5: IN PROGRESS. Roadmap order is now R5 → R3 → R4 → R2.
+- R5: SHIPPED 2026-10-09. Phone check passed. Commit `6834f18eef`; CI run
+  `37977618749` built the APK. Roadmap order is now R3 → R4 → R2.
+- Next work: R3 (M6b Waves B and C) is the next feature item. Pull it only
+  when the user asks.
 - Plan review gate PASSED 2026-10-09 (three reviewer rounds; 7 blocking
   findings fixed, then 2 remaining blockers fixed, then approved).
 - Stability baseline recorded 2026-10-09 BEFORE code changes: `test:stability`
@@ -62,6 +65,8 @@ plan. Read it top to bottom before touching code.
 - Diff review gate PASSED 2026-10-09 (two rounds: one blocking home-archive
   item plus nits, all fixed; verification round found no blockers). Commit
   hygiene: never stage `.husky/pre-push` or `screenshots/`.
+- Phone check: PASSED 2026-10-09 (user approved after installing the CI APK).
+  R5 closed; `roadmap.md` marks it shipped.
 
 ## Goal
 

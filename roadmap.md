@@ -66,7 +66,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 
 ## R5 — opencode mobile app: sync hardening (background, reconnect, feedback)
 
-- Status: in progress
+- Status: shipped 2026-10-09
 - Tier: 2
 - Effort: L
 - Depends on: R1
@@ -74,10 +74,10 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Goal: after background, disconnect, or slow network, the phone shows current data, recovers a dead stream, closes message gaps with no visible hole, and shows pending feedback with no duplicate actions.
 - Scope: stream watchdog and foreground restart (Capacitor lifecycle plus web visibility); single-flight resync of active sessions, home index, bootstrap, and active directories; open-session catch-up with gap closing bounded at 10 pages; pending and disabled states for new-session send, follow-up guard, archive, and delete.
 - Out of scope: durable event replay and persisted cursor (R2), push notifications, iOS, desktop-only chrome changes.
+- Shipped: commit `6834f18eef`, CI run `37977618749` built the APK; phone check passed 2026-10-09. Home-list archive coalesces duplicate taps even though the row button is hidden; the visible header archive path shows pending feedback.
 
 ## Implementation order
 
-1. R5 (in progress): sync hardening.
-2. R3: M6b Waves B and C.
-3. R4: mobile daily-use features.
-4. R2: parity and resume hardening.
+1. R3: M6b Waves B and C.
+2. R4: mobile daily-use features.
+3. R2: parity and resume hardening.
