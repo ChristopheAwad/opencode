@@ -16,10 +16,11 @@ bottom before touching code.
 - Roadmap order is now R3 → R4 → R2. R4 "daily-use features" was added
   2026-10-09 from the user's 23-item review list (see "In progress" below);
   item numbers #1-#23 are stable for future references.
-- Next work: the in-progress bug batch (#11/#15/#16) below is implemented,
-  reviewed, and awaiting the push approval plus the phone check. R3 (M6b
-  Waves B and C) stays next for feature work and is pulled only when the
-  user asks.
+- Next work: the bug batch (#11/#15/#16) is implemented and pushed; phone
+  round 1 found Rename dead on touch (touch ghost-click on the dialog
+  overlay) and requested richer context info. Both are fixed and verified
+  locally; see "Follow-up round 2" below. R3 (M6b Waves B and C) stays next
+  for feature work and is pulled only when the user asks.
 - `project-brief.md` does not exist on any branch of this fork (checked
   `git log --all`), so reviews validate against `roadmap.md`,
   `PERSONAL-FORK.md`, `packages/app/AGENTS.md`, and the code instead. Treat
@@ -78,8 +79,29 @@ Full consolidation option chosen (no Rename/Delete regression).
   fail, identical to the pre-change baseline. oxlint 0 errors (new files
   clean). Reviewer diff gate: no blocking issues; 2 nits fixed (live
   accessors in the context dialog, delete-failure e2e added).
-- Status: awaiting user approval to push (`--no-verify`); CI then rebuilds
-  the APK for the phone check.
+- Pushed 2026-10-09 (`f2ccdee37d`, `de6a7d58f5`); CI run `37948848429` built
+  the APK. Phone round 1 found: Rename does nothing; context dialog works but
+  needs more data.
+
+## Follow-up round 2 (2026-10-09, after phone check)
+
+- Rename "nothing opens" root cause: Kobalte fires the menu item `onSelect`
+  on `pointerup` for touch; the dialog mounts, then the trailing synthetic
+  `click` lands on the freshly mounted dialog overlay and instantly closes it
+  (proved with a `.tap()` e2e probe; `.click()` tests missed it). Fix:
+  `packages/ui/src/context/dialog.tsx` ignores overlay clicks for 350 ms after
+  mount. (`dialog.show` itself was proven fine; the real v1 server PATCH and
+  CORS were verified with curl against the running server.)
+- Regression tests: `e2e/regression/mobile-session-header.spec.ts` rename and
+  delete-cancel tests now use `.tap()`; a v1-protocol rename test covers the
+  phone's compat path (`mockMobileServer` accepts `protocol`).
+- Context dialog enriched (reuses existing `context.stats.*` keys; no new
+  i18n keys): Model, Context Limit, Usage, Cost, Input/Output/Reasoning,
+  Cache (read/write), Total Tokens. Body scrolls at `max-h-[60vh]`.
+- Verification: app unit 763, browser 46, ui typecheck + 27 tests, full e2e
+  158 pass / 2 pre-existing `tab-strip-mobile-scroll` failures,
+  `test:stability` 43/1 identical to baseline, oxlint 0 errors.
+- Status: awaiting user approval to push for the next APK and phone check.
 
 ## User review item index (2026-10-09)
 
