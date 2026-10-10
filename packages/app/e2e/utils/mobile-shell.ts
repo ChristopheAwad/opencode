@@ -7,8 +7,10 @@ export const DEFAULT_SERVER_KEY = "opencode.settings.dat:defaultServerUrl"
 export async function installNativeShell(page: Page) {
   await page.addInitScript(() => {
     const listeners: Record<string, Array<(...args: unknown[]) => void>> = {}
+    const haptics: Array<Record<string, unknown>> = []
     Object.assign(window, {
       __capacitorAppListeners: listeners,
+      __capacitorHaptics: haptics,
       Capacitor: {
         isNativePlatform: () => true,
         Plugins: {
@@ -22,6 +24,14 @@ export async function installNativeShell(page: Page) {
                   if (index >= 0) list.splice(index, 1)
                 },
               }
+            },
+          },
+          Haptics: {
+            impact: (input: Record<string, unknown>) => {
+              haptics.push({ method: "impact", ...input })
+            },
+            notification: (input: Record<string, unknown>) => {
+              haptics.push({ method: "notification", ...input })
             },
           },
         },

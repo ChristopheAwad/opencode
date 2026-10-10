@@ -1,0 +1,6 @@
+/* Native shell only. Every rule must be scoped under html[data-native] so
+   desktop and plain web are untouched. */
+html[data-native] [data-component="collapsible"].tool-collapsible [data-slot="collapsible-trigger"] {
+  height: auto;
+  min-height: 44px;
+}

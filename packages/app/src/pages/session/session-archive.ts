@@ -10,6 +10,8 @@ import { useTabs } from "@/context/tabs"
 import { errorMessage } from "@/pages/layout/helpers"
 import { useSessionKey } from "@/pages/session/session-layout"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
+import { hapticNotification } from "@/utils/native-haptics"
+import { isNativeShell } from "@/utils/native-platform"
 import { showToast } from "@/utils/toast"
 
 // Shared across useSessionArchive() instances: the mobile header, the command
@@ -79,6 +81,7 @@ export function useSessionArchive() {
           serverSync().homeSessions.remove(sessionID)
           navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
           notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [sessionID] })
+          if (isNativeShell()) hapticNotification("success")
         })
         .catch((err) => {
           showToast({

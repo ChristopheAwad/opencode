@@ -157,7 +157,10 @@ if (root instanceof HTMLElement) {
     const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
     clearAuthToken()
     const native = isNativeShell()
-    if (native) registerNativeBackButton()
+    if (native) {
+      document.documentElement.setAttribute("data-native", "")
+      registerNativeBackButton()
+    }
 
     // First run in the mobile shell: no stored server exists yet, so there is
     // no origin to default to. Show the connect screen before the app boots.

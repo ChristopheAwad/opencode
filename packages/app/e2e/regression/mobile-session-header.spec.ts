@@ -91,6 +91,14 @@ test.describe("compact native session header", () => {
 
     await header.getByRole("button", { name: "More options" }).click()
 
+    await expect(page.getByRole("menuitem")).toHaveText([
+      "Rename",
+      "Share",
+      "Export",
+      "Archive",
+      "Delete",
+      "New session",
+    ])
     await expect(page.getByRole("menuitem", { name: "Share" })).toBeVisible()
     await expect(page.getByRole("menuitem", { name: "Export" })).toBeVisible()
     await expect(page.getByRole("menuitem", { name: "Archive" })).toBeVisible()

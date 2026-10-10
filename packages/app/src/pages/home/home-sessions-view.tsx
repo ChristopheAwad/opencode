@@ -1,5 +1,5 @@
 import type { Session } from "@opencode-ai/sdk/v2/client"
-import { type Accessor, createMemo, For, Show, Suspense } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Suspense } from "solid-js"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
@@ -9,7 +9,11 @@ import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import { SessionTabAvatarView } from "@/pages/layout/session-tab-avatar"
+import { subscribeLongPress } from "@/utils/long-press"
+import { hapticImpact } from "@/utils/native-haptics"
+import { isNativeShell } from "@/utils/native-platform"
 import { sessionTitle } from "@/utils/session-title"
+import { createSwipeGesture } from "@/utils/swipe-action"
 import { shouldOpenSessionInBackground } from "../home-session-open"
 import {
   HomeSessionStatusController,
@@ -36,6 +40,155 @@ function isBackgroundOpen(event: MouseEvent) {
   })
 }
 
+function useSessionRowLongPress(props: {
+  record: HomeSessionRecord
+  onOpenSessionMenu: (record: HomeSessionRecord) => void
+}) {
+  const native = isNativeShell()
+  let element: HTMLButtonElement | undefined
+  let suppressClick = false
+
+  onMount(() => {
+    if (!native || !element) return
+    onCleanup(
+      subscribeLongPress(element, () => {
+        suppressClick = true
+        props.onOpenSessionMenu(props.record)
+      }),
+    )
+  })
+
+  return {
+    ref: (target: HTMLButtonElement) => {
+      element = target
+    },
+    clearClick: () => {
+      suppressClick = false
+    },
+    takeClick: () => {
+      if (!suppressClick) return false
+      suppressClick = false
+      return true
+    },
+  }
+}
+
+function useSessionRowGestures(props: {
+  record: HomeSessionRecord
+  onOpenSessionMenu: (record: HomeSessionRecord) => void
+  onArchiveSession: (session: Session) => Promise<void>
+  onReveal: (key: string, reset: () => void) => void
+  onCloseReveal: (key: string) => void
+}) {
+  const native = isNativeShell()
+  const [offset, setOffset] = createSignal(0)
+  let element: HTMLButtonElement | undefined
+  let suppressClick = false
+  let moved = false
+  let start: { x: number; y: number } | undefined
+  let swipe: ReturnType<typeof createSwipeGesture> | undefined
+  const resetReveal = () => {
+    props.onCloseReveal(props.record.session.id)
+    swipe?.reset()
+    setOffset(0)
+  }
+
+  onMount(() => {
+    if (!native || !element) return
+    onCleanup(
+      subscribeLongPress(element, () => {
+        swipe?.onPointerCancel()
+        setOffset(0)
+        props.onCloseReveal(props.record.session.id)
+        suppressClick = true
+        props.onOpenSessionMenu(props.record)
+      }),
+    )
+  })
+
+  const armSwipe = () => {
+    if (!native || !element) return
+    swipe = createSwipeGesture({
+      width: element.getBoundingClientRect().width,
+      direction: document.documentElement.dir === "rtl" ? -1 : 1,
+    })
+  }
+
+  const onPointerDown = (event: PointerEvent) => {
+    suppressClick = false
+    moved = false
+    start = { x: event.clientX, y: event.clientY }
+    if (!native) return
+    try {
+      ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+    } catch {
+      // Synthetic events may not support pointer capture.
+    }
+    armSwipe()
+    swipe?.onPointerDown(event.clientX, event.clientY)
+  }
+  const onPointerMove = (event: PointerEvent) => {
+    if (!swipe) return
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) moved = true
+    swipe.onPointerMove(event.clientX, event.clientY)
+    const next = swipe.offset()
+    setOffset(next)
+  }
+  const onPointerUp = (event: PointerEvent) => {
+    if (!swipe) return
+    if (event.currentTarget instanceof HTMLElement && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    const result = swipe.onPointerUp()
+    setOffset(swipe.offset())
+    if (result === "reveal") {
+      props.onReveal(props.record.session.id, resetReveal)
+      return
+    }
+    if (result !== "commit") return
+    if (native) hapticImpact("medium")
+    void props.onArchiveSession(props.record.session).finally(resetReveal)
+  }
+  const onPointerCancel = (event: PointerEvent) => {
+    if (event.currentTarget instanceof HTMLElement && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    swipe?.onPointerCancel()
+    setOffset(0)
+    props.onCloseReveal(props.record.session.id)
+  }
+
+  return {
+    ref: (target: HTMLButtonElement) => {
+      element = target
+    },
+    offset,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    consumeClick: (event: MouseEvent) => {
+      if (suppressClick) {
+        suppressClick = false
+        event.preventDefault()
+        return true
+      }
+      if (moved) {
+        moved = false
+        event.preventDefault()
+        return true
+      }
+      if (offset() === 0) return false
+      swipe?.reset()
+      setOffset(0)
+      props.onCloseReveal(props.record.session.id)
+      event.preventDefault()
+      event.stopPropagation()
+      return true
+    },
+  }
+}
+
 export type HomeSessionsViewProps = {
   language: ReturnType<typeof useLanguage>
   groups: Accessor<HomeSessionGroup[]>
@@ -53,6 +206,7 @@ export type HomeSessionsViewProps = {
   isOpenTab: (record: HomeSessionRecord) => boolean
   onCreateSession: () => void
   onOpenSession: (session: Session, options?: OpenSessionOptions) => void
+  onOpenSessionMenu: (record: HomeSessionRecord) => void
   onArchiveSession: (session: Session) => Promise<void>
   archivePending: (sessionID: string) => boolean
   onSetHoverTarget: (element: HTMLElement) => void
@@ -72,7 +226,34 @@ export type HomeSessionsViewProps = {
   onSearchSelect: (record: HomeSessionRecord, options?: OpenSessionOptions) => void
 }
 
+type HomeSessionRowProps = HomeSessionsViewProps & {
+  record: HomeSessionRecord
+  onReveal: (key: string, reset: () => void) => void
+  onCloseReveal: (key: string) => void
+}
+
 export function HomeSessionsView(props: HomeSessionsViewProps) {
+  const [revealed, setRevealed] = createSignal<{ key: string; reset: () => void } | null>(null)
+  const closeRevealed = () => {
+    const current = revealed()
+    setRevealed(null)
+    current?.reset()
+  }
+  const clearRevealed = (key: string) => {
+    if (revealed()?.key === key) setRevealed(null)
+  }
+  createEffect(() => {
+    const current = revealed()
+    if (!current) return
+    const handler = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest(`[data-reveal-key="${current.key}"]`)) return
+      closeRevealed()
+    }
+    document.addEventListener("pointerdown", handler, true)
+    onCleanup(() => document.removeEventListener("pointerdown", handler, true))
+  })
+
   return (
     <section
       ref={props.onSetHoverTarget}
@@ -135,7 +316,16 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
                     <div
                       class={`flex min-w-0 flex-col gap-px pt-4 ${index() === props.groups().length - 1 ? "" : "mb-6"}`}
                     >
-                      <For each={group.sessions}>{(record) => <HomeSessionRow {...props} record={record} />}</For>
+                      <For each={group.sessions}>
+                        {(record) => (
+                          <HomeSessionRow
+                            {...props}
+                            record={record}
+                            onReveal={(key, reset) => setRevealed({ key, reset })}
+                            onCloseReveal={clearRevealed}
+                          />
+                        )}
+                      </For>
                     </div>
                   </>
                 )}
@@ -348,6 +538,8 @@ function HomeSessionSearchResultRow(
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName() && props.record.projectName
   const key = () => homeSessionSearchKey(props.record)
+  const longPress = useSessionRowLongPress(props)
+  const native = isNativeShell()
 
   return (
     <button
@@ -357,6 +549,7 @@ function HomeSessionSearchResultRow(
       data-component="home-session-search-row"
       role="option"
       aria-selected={props.selected}
+      ref={longPress.ref}
       class={`
         flex h-10 w-full shrink-0 cursor-default items-center gap-2 border-0 py-3 pl-[18px] pr-6 text-left
         transition-[background-color] duration-[120ms] ease-in-out
@@ -365,12 +558,20 @@ function HomeSessionSearchResultRow(
       classList={{
         "bg-v2-overlay-simple-overlay-hover": props.selected,
         group: !!showProjectName(),
+        "h-12": native,
       }}
       onMouseEnter={() => props.onSearchHighlight(props.record)}
+      onPointerDown={() => longPress.clearClick()}
       onMouseDown={(event) => {
         if (event.button === 1) event.preventDefault()
       }}
-      onClick={(event) => props.onSearchSelect(props.record, { background: isBackgroundOpen(event) })}
+      onClick={(event) => {
+        if (longPress.takeClick()) {
+          event.preventDefault()
+          return
+        }
+        props.onSearchSelect(props.record, { background: isBackgroundOpen(event) })
+      }}
       onAuxClick={(event) => {
         if (!isBackgroundOpen(event)) return
         event.preventDefault()
@@ -415,51 +616,29 @@ function HomeSessionGroupHeader(props: {
   )
 }
 
-function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionRecord }) {
+function HomeSessionRow(props: HomeSessionRowProps) {
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName() && props.record.projectName
+  const native = isNativeShell()
+  const gestures = useSessionRowGestures({
+    record: props.record,
+    onOpenSessionMenu: props.onOpenSessionMenu,
+    onArchiveSession: props.onArchiveSession,
+    onReveal: props.onReveal,
+    onCloseReveal: props.onCloseReveal,
+  })
 
   return (
     <div
+      data-reveal-key={native ? props.record.session.id : undefined}
       class="group/session relative flex h-10 min-w-0 items-center rounded-[6px]"
-      classList={{ group: !!showProjectName() }}
+      classList={{ group: !!showProjectName(), "h-12 overflow-hidden": native }}
     >
-      <button
-        type="button"
-        data-component="home-session-row"
-        class={`
-          flex h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-center gap-2 rounded-[6px] border-0
-          bg-transparent py-3 pl-3 pr-10 text-left text-v2-text-text-muted [font-weight:530]
-          transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
-          hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
-        `}
-        onMouseDown={(event) => {
-          if (event.button === 1) event.preventDefault()
-        }}
-        onClick={(event) => props.onOpenSession(props.record.session, { background: isBackgroundOpen(event) })}
-        onAuxClick={(event) => {
-          if (!isBackgroundOpen(event)) return
-          event.preventDefault()
-          props.onOpenSession(props.record.session, { background: true })
-        }}
-      >
-        <HomeSessionLeadingController
-          server={props.server}
-          isOpenTab={props.isOpenTab}
-          record={props.record}
-          revealProjectOnHover={!!showProjectName()}
-        />
-        <HomeSessionTitle title={title()} showProjectName={!!showProjectName()} />
-        <Show when={showProjectName()}>
-          <HomeSessionProjectName name={props.record.projectName} />
-        </Show>
-      </button>
-      <Show when={SHOW_HOME_SESSION_ARCHIVE}>
+      <Show when={native || SHOW_HOME_SESSION_ARCHIVE}>
         <div
-          class={`
-            hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1
-            group-hover/session:opacity-100 focus-within:opacity-100
-          `}
+          data-component="home-session-archive-affordance"
+          class="absolute inset-y-0 end-1.5 flex items-center gap-1"
+          aria-hidden={gestures.offset() === 0 ? "true" : "false"}
         >
           <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={props.language.t("common.archive")}>
             <IconButtonV2
@@ -481,6 +660,46 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
           </TooltipV2>
         </div>
       </Show>
+      <button
+        type="button"
+        data-component="home-session-row"
+        ref={gestures.ref}
+        style={native ? { transform: `translateX(${gestures.offset()}px)`, "touch-action": "pan-y" } : undefined}
+        class={`
+          flex h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-center gap-2 rounded-[6px] border-0
+          bg-transparent py-3 pl-3 pr-10 text-left text-v2-text-text-muted [font-weight:530]
+          transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
+          hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+        `}
+        classList={{ "h-12 bg-v2-background-bg-base relative": native }}
+        onPointerDown={gestures.onPointerDown}
+        onPointerMove={gestures.onPointerMove}
+        onPointerUp={gestures.onPointerUp}
+        onPointerCancel={gestures.onPointerCancel}
+        onMouseDown={(event) => {
+          if (event.button === 1) event.preventDefault()
+        }}
+        onClick={(event) => {
+          if (gestures.consumeClick(event)) return
+          props.onOpenSession(props.record.session, { background: isBackgroundOpen(event) })
+        }}
+        onAuxClick={(event) => {
+          if (!isBackgroundOpen(event)) return
+          event.preventDefault()
+          props.onOpenSession(props.record.session, { background: true })
+        }}
+      >
+        <HomeSessionLeadingController
+          server={props.server}
+          isOpenTab={props.isOpenTab}
+          record={props.record}
+          revealProjectOnHover={!!showProjectName()}
+        />
+        <HomeSessionTitle title={title()} showProjectName={!!showProjectName()} />
+        <Show when={showProjectName()}>
+          <HomeSessionProjectName name={props.record.projectName} />
+        </Show>
+      </button>
     </div>
   )
 }

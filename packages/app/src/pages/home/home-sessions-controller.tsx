@@ -3,8 +3,10 @@ import { preloadMarkdown } from "@opencode-ai/session-ui/markdown-cache"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useQuery } from "@tanstack/solid-query"
 import { DateTime } from "luxon"
-import { type Accessor, createEffect, createMemo, createRoot, type JSX, startTransition } from "solid-js"
+import { type Accessor, createEffect, createMemo, createRoot, createSignal, type JSX, startTransition } from "solid-js"
 import { createStore, produce } from "solid-js/store"
+import { useSessionActions } from "@/components/session-actions"
+import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
 import { useCommand } from "@/context/command"
 import {
   loadHomeSessionIndex,
@@ -17,11 +19,14 @@ import { ServerConnection } from "@/context/server"
 import { sessionHasOpenTab, useTabs } from "@/context/tabs"
 import { errorMessage, projectForSession } from "@/pages/layout/helpers"
 import { useSessionTabAvatarState } from "@/pages/layout/project-avatar-state"
+import { hapticNotification } from "@/utils/native-haptics"
 import { isNativeShell } from "@/utils/native-platform"
 import { pathKey } from "@/utils/path-key"
+import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { archiveHomeSession } from "../home-session-archive"
+import { collectSessionRemovalIDs } from "../home-session-actions"
 import type { HomeController } from "./home-controller"
 import { buildHomeSessionRecords, type HomeSessionRecord } from "./home-session-records"
 
@@ -87,15 +92,36 @@ export function createHomeSessionsController(home: HomeController) {
       Date.now(),
     ),
   )
+  const [sessionMutations, setSessionMutations] = createSignal<{
+    updated: ReadonlyMap<string, Session>
+    removed: ReadonlySet<string>
+  }>({ updated: new Map(), removed: new Set() })
+  const mutatedSessions = createMemo(() => {
+    const mutations = sessionMutations()
+    return indexedSessions()
+      .filter((session) => !mutations.removed.has(session.id))
+      .map((session) => mutations.updated.get(session.id) ?? session)
+  })
   const allRecords = createMemo(() =>
     buildHomeSessionRecords({
-      sessions: indexedSessions,
+      sessions: mutatedSessions,
       projectDirectories,
       projects: home.project.list,
       projectByID,
       native: native && !home.project.selected(),
     }),
   )
+  const applyLocalSession = (info: Session) =>
+    setSessionMutations((current) => ({
+      updated: new Map(current.updated).set(info.id, info),
+      removed: current.removed,
+    }))
+  const removeLocalSessions = (ids: Iterable<string>) =>
+    setSessionMutations((current) => {
+      const removed = new Set(current.removed)
+      for (const id of ids) removed.add(id)
+      return { updated: current.updated, removed }
+    })
   const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()
@@ -165,6 +191,120 @@ export function createHomeSessionsController(home: HomeController) {
     },
   ])
 
+  const archiveSession = async (session: Session) => {
+    if (archivePending[session.id]) return
+    const conn = home.server.focused()
+    const ctx = home.server.focusedContext()
+    if (!conn || !ctx) return
+    const [, setStore] = ctx.sync.child(session.directory)
+    setArchivePending(session.id, true)
+    try {
+      if ((await ctx.sdk.protocol) !== "v1") return
+      await archiveHomeSession({
+        server: ServerConnection.key(conn),
+        session,
+        archive: (sessionID) =>
+          ctx.sdk.client.session.update({
+            sessionID,
+            directory: session.directory,
+            time: { archived: Date.now() },
+          }),
+        remove: () => {
+          setStore(
+            produce((draft) => {
+              const match = Binary.search(draft.session, session.id, (item) => item.id)
+              if (match.found) draft.session.splice(match.index, 1)
+            }),
+          )
+          homeSessions().remove(session.id)
+          removeLocalSessions([session.id])
+        },
+        onError: (cause) =>
+          showToast({
+            title: language.t("common.requestFailed"),
+            description: errorMessage(cause, language.t("common.requestFailed")),
+          }),
+      })
+      if (isNativeShell()) hapticNotification("success")
+    } finally {
+      setArchivePending(session.id, false)
+    }
+  }
+
+  const actionContext = () => home.server.focusedContext()
+
+  const renameSession = async (record: HomeSessionRecord, title: string) => {
+    const ctx = actionContext()
+    if (!ctx) return
+    await ctx.sdk.client.session.update({
+      sessionID: record.session.id,
+      title,
+      directory: record.session.directory,
+    })
+    const info = { ...record.session, title }
+    applyLocalSession(info)
+    ctx.sync.ensureDirSyncContext(record.session.directory).session.remember(info)
+  }
+
+  const removeSession = async (record: HomeSessionRecord) => {
+    const ctx = actionContext()
+    if (!ctx) return false
+    const session = record.session
+    const dir = ctx.sync.ensureDirSyncContext(session.directory)
+    const removed = collectSessionRemovalIDs(dir.data.session ?? [], session.id)
+    const ok = await ctx.sdk.client.session
+      .delete({ sessionID: session.id, directory: session.directory })
+      .then(() => true)
+      .catch((cause) => {
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: errorMessage(cause, language.t("common.requestFailed")),
+        })
+        return false
+      })
+    if (!ok) return false
+
+    const [, setStore] = ctx.sync.child(session.directory)
+    setStore(
+      produce((draft) => {
+        draft.session = draft.session.filter((item) => !removed.has(item.id))
+      }),
+    )
+    for (const id of removed) dir.session.evict(id)
+    homeSessions().remove(session.id)
+    removeLocalSessions(removed)
+    notifySessionTabsRemoved({ directory: session.directory, sessionIDs: [...removed] })
+    return true
+  }
+
+  const [menuRecord, setMenuRecord] = createSignal<HomeSessionRecord>()
+  const [menuOpen, setMenuOpen] = createSignal(false)
+  const menuActions = useSessionActions({
+    sessionID: () => menuRecord()?.session.id,
+    directory: () => menuRecord()?.session.directory,
+    shareEnabled: () => home.server.focusedSync().data.config.share !== "disabled",
+    shareUrl: () => menuRecord()?.session.share?.url,
+    shareClient: () => actionContext()?.sdk.client,
+    name: () => sessionTitle(menuRecord()?.session.title),
+    archive: (id) => {
+      const record = menuRecord()
+      if (!record || record.session.id !== id) return
+      void archiveSession(record.session)
+    },
+    archiving: () => !!archivePending[menuRecord()?.session.id ?? ""],
+    rename: (id, title) => {
+      const record = menuRecord()
+      if (!record || record.session.id !== id) return Promise.resolve()
+      return renameSession(record, title)
+    },
+    remove: (id) => {
+      const record = menuRecord()
+      if (!record || record.session.id !== id) return Promise.resolve(false)
+      return removeSession(record)
+    },
+    newSession: () => command.trigger("tab.new"),
+  })
+
   return {
     copy: {
       language,
@@ -206,44 +346,22 @@ export function createHomeSessionsController(home: HomeController) {
           tabs.select(tab)
         })
       },
-      archive: async (session: Session) => {
-        if (archivePending[session.id]) return
-        const conn = home.server.focused()
-        const ctx = home.server.focusedContext()
-        if (!conn || !ctx) return
-        const [, setStore] = ctx.sync.child(session.directory)
-        setArchivePending(session.id, true)
-        try {
-          if ((await ctx.sdk.protocol) !== "v1") return
-          await archiveHomeSession({
-            server: ServerConnection.key(conn),
-            session,
-            archive: (sessionID) =>
-              ctx.sdk.client.session.update({
-                sessionID,
-                directory: session.directory,
-                time: { archived: Date.now() },
-              }),
-            remove: () => {
-              setStore(
-                produce((draft) => {
-                  const match = Binary.search(draft.session, session.id, (item) => item.id)
-                  if (match.found) draft.session.splice(match.index, 1)
-                }),
-              )
-              homeSessions().remove(session.id)
-            },
-            onError: (cause) =>
-              showToast({
-                title: language.t("common.requestFailed"),
-                description: errorMessage(cause, language.t("common.requestFailed")),
-              }),
-          })
-        } finally {
-          setArchivePending(session.id, false)
-        }
-      },
+      archive: archiveSession,
       archivePending: (sessionID: string) => !!archivePending[sessionID],
+      rename: renameSession,
+      remove: removeSession,
+    },
+    menu: {
+      // The record survives close so dialogs opened from the sheet can read it
+      // while the sheet animates away.
+      record: menuRecord,
+      openState: menuOpen,
+      open: (record: HomeSessionRecord) => {
+        setMenuRecord(record)
+        setMenuOpen(true)
+      },
+      close: () => setMenuOpen(false),
+      actions: menuActions,
     },
     tab: {
       isOpen: (record: HomeSessionRecord) =>

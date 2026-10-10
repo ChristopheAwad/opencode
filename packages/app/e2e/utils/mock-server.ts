@@ -5,6 +5,7 @@ const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mc
 
 export interface MockServerConfig {
   protocol?: "v1" | "v2"
+  config?: Record<string, unknown>
   provider: unknown | (() => unknown)
   providerV2?: {
     providers: Array<Record<string, unknown> & { id: string; name: string }>
@@ -196,7 +197,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
-    if (emptyObject.has(path)) return json(route, {})
+    if (emptyObject.has(path)) return json(route, path.endsWith("config") ? (config.config ?? {}) : {})
     if (emptyList.has(path)) return json(route, [])
     if (path === "/api/session") {
       const directory = url.searchParams.get("directory")

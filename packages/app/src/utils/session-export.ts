@@ -11,18 +11,19 @@ export type SessionExportData = {
 
 export type SessionExportClient = {
   session: {
-    get: (input: { sessionID: string }) => Promise<{ data?: Session | null }>
-    messages: (input: { sessionID: string }) => Promise<{ data?: SessionExportData["messages"] | null }>
+    get: (input: { sessionID: string; directory?: string }) => Promise<{ data?: Session | null }>
+    messages: (input: { sessionID: string; directory?: string }) => Promise<{ data?: SessionExportData["messages"] | null }>
   }
 }
 
 export async function fetchSessionExport(input: {
   sessionID: string
+  directory?: string
   client: SessionExportClient
 }): Promise<SessionExportData> {
   const [sessionRes, messagesRes] = await Promise.all([
-    input.client.session.get({ sessionID: input.sessionID }),
-    input.client.session.messages({ sessionID: input.sessionID }),
+    input.client.session.get({ sessionID: input.sessionID, directory: input.directory }),
+    input.client.session.messages({ sessionID: input.sessionID, directory: input.directory }),
   ])
 
   if (!sessionRes?.data) {

@@ -1,18 +1,18 @@
-import { createMemo, Show } from "solid-js"
+import { createMemo, For, Show } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { SessionProgressIndicatorV2 } from "@opencode-ai/session-ui/v2/session-progress-indicator-v2"
-import { DialogDeleteSession } from "@/components/dialog-delete-session"
-import { DialogRenameSession } from "@/components/dialog-rename-session"
+import { useSessionActions } from "@/components/session-actions"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { useSessionDelete, useSessionRename } from "@/pages/session/session-rename-delete"
 import { sessionTitle } from "@/utils/session-title"
 
 export function MobileSessionHeader(props: {
@@ -21,10 +21,12 @@ export function MobileSessionHeader(props: {
   onSelect: (tab: "session" | "changes") => void
 }) {
   const command = useCommand()
-  const dialog = useDialog()
   const language = useLanguage()
+  const sdk = useSDK()
   const sync = useSync()
   const sessionArchive = useSessionArchive()
+  const sessionRename = useSessionRename()
+  const sessionDelete = useSessionDelete()
   const { params } = useSessionLayout()
 
   const title = createMemo(
@@ -35,17 +37,19 @@ export function MobileSessionHeader(props: {
   const working = createMemo(() => !!params.id && sync().data.session_working(params.id))
   const shareEnabled = createMemo(() => sync().data.config.share !== "disabled")
 
-  const openRename = () => {
-    const id = params.id
-    if (!id) return
-    dialog.show(() => <DialogRenameSession sessionID={id} />)
-  }
-
-  const openDelete = () => {
-    const id = params.id
-    if (!id) return
-    dialog.show(() => <DialogDeleteSession sessionID={id} />)
-  }
+  const actions = useSessionActions({
+    sessionID: () => params.id,
+    directory: () => (params.id ? sync().session.get(params.id)?.directory : undefined),
+    shareEnabled,
+    shareUrl: () => (params.id ? sync().session.get(params.id)?.share?.url : undefined),
+    shareClient: () => sdk().client,
+    name: title,
+    archive: (id) => void sessionArchive.archive(id),
+    archiving: () => sessionArchive.archiving(params.id),
+    rename: sessionRename,
+    remove: sessionDelete,
+    newSession: () => command.trigger("session.new"),
+  })
 
   return (
     <header
@@ -119,25 +123,18 @@ export function MobileSessionHeader(props: {
         />
         <MenuV2.Portal>
           <MenuV2.Content style={{ width: "160px", "min-width": "160px" }}>
-            <MenuV2.Item onSelect={openRename}>{language.t("common.rename")}</MenuV2.Item>
-            <Show when={shareEnabled()}>
-              <MenuV2.Item onSelect={() => command.trigger("session.share")}>
-                {language.t("session.share.action.share")}
-              </MenuV2.Item>
-            </Show>
-            <MenuV2.Item onSelect={() => command.trigger("session.export")}>{language.t("common.export")}</MenuV2.Item>
-            <MenuV2.Item
-              disabled={sessionArchive.archiving(params.id)}
-              onSelect={() => command.trigger("session.archive")}
-            >
-              {language.t("common.archive")}
-            </MenuV2.Item>
-            <MenuV2.Separator />
-            <MenuV2.Item onSelect={openDelete}>{language.t("common.delete")}</MenuV2.Item>
-            <MenuV2.Separator />
-            <MenuV2.Item onSelect={() => command.trigger("session.new")}>
-              {language.t("command.session.new")}
-            </MenuV2.Item>
+            <For each={actions()}>
+              {(action) => (
+                <>
+                  <MenuV2.Item disabled={action.disabled} onSelect={action.onSelect}>
+                    {action.label}
+                  </MenuV2.Item>
+                  <Show when={action.id === "archive" || action.id === "delete"}>
+                    <MenuV2.Separator />
+                  </Show>
+                </>
+              )}
+            </For>
           </MenuV2.Content>
         </MenuV2.Portal>
       </MenuV2>

@@ -6,6 +6,8 @@ import { SessionQuestionDock } from "@/pages/session/composer/session-question-d
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
+import { hapticImpact } from "@/utils/native-haptics"
+import { isNativeShell } from "@/utils/native-platform"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
 export function SessionComposerRegion(props: {
@@ -51,6 +53,7 @@ export function SessionComposerRegion(props: {
                 request={request}
                 responding={controller.state.permissionResponding()}
                 onDecide={(response) => {
+                  if (isNativeShell()) hapticImpact(response === "reject" ? "medium" : "light")
                   controller.onResponseSubmit()
                   controller.state.decide(response)
                 }}

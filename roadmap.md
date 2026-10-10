@@ -35,7 +35,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 
 ## R3 — opencode mobile app: mobile shell polish
 
-- Status: planned
+- Status: in progress
 - Tier: 2
 - Effort: L
 - Depends on: R1
@@ -56,7 +56,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
   - Mobile settings destination: its own entry point (#1), mobile-first layout instead of squeezed desktop chrome (#2), settings search (#20).
   - Sessions list v2: taller rows with project, branch, relative last-accessed time, and status (#12); pin sessions to the top (#4); project search in the top section (#18); expanding search icon for sessions and projects (#19).
   - Settle = archive shortcut (#5), auto-settle/archive on commit (#14).
-  - One session action menu shared by the header and long-press (#8, #11 residual); context info tap and Session/Changes context redesign (#15 residual, #23).
+  - Context info tap and Session/Changes context redesign (#15 residual, #23). Item #8 (one session action menu shared by the header and long-press) shipped in R3.
   - New session/project: prompt for a known project (#9), "No Project" scratch project (#13), friendlier directory navigator (#10).
   - Sync and feedback: moved to R5 (#6, #17).
   - Composer: Enter inserts a newline instead of sending (#22).

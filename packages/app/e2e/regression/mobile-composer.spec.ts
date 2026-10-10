@@ -108,13 +108,16 @@ test.describe("native composer", () => {
     expect(submitBox!.height).toBeGreaterThanOrEqual(36)
   })
 
-  test("switches the agent from the selector", async ({ page }) => {
+  test("switches the agent from the sheet", async ({ page }) => {
     const composer = await openSession(page)
     const agent = composer.getByRole("button", { name: "Choose agent" })
+    const sheet = page.locator('[data-component="mobile-sheet"]')
 
     await expect(agent).toContainText(/build/i)
     await agent.click()
-    await page.getByRole("menuitemradio", { name: /plan/i }).click()
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole("button", { name: /plan/i }).click()
+    await expect(sheet).toBeHidden()
     await expect(agent).toContainText(/plan/i)
   })
 
@@ -152,14 +155,17 @@ test.describe("native composer", () => {
     await expect(composer).toBeVisible()
   })
 
-  test("opens the model panel with model and reasoning options", async ({ page }) => {
+  test("opens the model picker sheet with model and reasoning options", async ({ page }) => {
     const composer = await openSession(page)
 
     const model = composer.locator('[data-action="prompt-model"][data-control-type="panel"]')
     await expect(model).toBeVisible()
     await model.click()
 
-    const panel = page.locator('[data-component="native-model-panel"]')
+    const sheet = page.locator('[data-component="mobile-sheet"]')
+    await expect(sheet).toBeVisible()
+    await expect(sheet).toHaveAttribute("data-side", "bottom")
+    const panel = sheet.locator('[data-component="native-model-panel"]')
     await expect(panel).toBeVisible()
     await expect(panel.getByRole("button", { name: /Test Model/ })).toBeVisible()
 
@@ -168,14 +174,24 @@ test.describe("native composer", () => {
     await expect(panel.getByRole("button", { name: /Test Model/ })).toBeVisible()
     await search.fill("no-such-model")
     await expect(panel.getByText("No model results")).toBeVisible()
+    await search.fill("Test")
 
-    const high = panel.locator('[data-action="native-variant-option"][data-variant="high"]')
+    await panel.getByRole("button", { name: /Test Model/ }).click()
+    await expect(sheet).toBeHidden()
+
+    await model.click()
+    const high = sheet.locator('[data-action="native-variant-option"][data-variant="high"]')
     await expect(high).toBeVisible()
     await high.click()
-    await expect(high).toHaveAttribute("aria-pressed", "true")
+    await expect(sheet).toBeHidden()
 
+    await model.click()
+    await expect(high).toHaveAttribute("aria-pressed", "true")
+    await expect
+      .poll(() => sheet.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true)
     await page.keyboard.press("Escape")
-    await expect(panel).toBeHidden()
+    await expect(sheet).toBeHidden()
   })
 
   test("keeps reasoning options reachable with a long model list", async ({ page }) => {
@@ -183,10 +199,13 @@ test.describe("native composer", () => {
 
     await composer.locator('[data-action="prompt-model"][data-control-type="panel"]').click()
 
-    const panel = page.locator('[data-component="native-model-panel"]')
-    await expect(panel).toBeVisible()
-    const high = panel.locator('[data-action="native-variant-option"][data-variant="high"]')
+    const sheet = page.locator('[data-component="mobile-sheet"]')
+    await expect(sheet).toBeVisible()
+    const high = sheet.locator('[data-action="native-variant-option"][data-variant="high"]')
     await high.click()
+    await expect(sheet).toBeHidden()
+
+    await composer.locator('[data-action="prompt-model"][data-control-type="panel"]').click()
     await expect(high).toHaveAttribute("aria-pressed", "true")
   })
 

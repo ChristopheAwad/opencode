@@ -51,6 +51,9 @@ import type {
   UserMessage,
 } from "@opencode-ai/sdk/v2"
 import { showToast } from "@/utils/toast"
+import { writeClipboard } from "@opencode-ai/session-ui/clipboard"
+import { subscribeLongPress } from "@/utils/long-press"
+import { completedToolOutput } from "@/pages/session/timeline/tool-copy"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
@@ -63,6 +66,7 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { useSessionKey } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
+import { useSessionDelete } from "@/pages/session/session-rename-delete"
 import { useServerSDK } from "@/context/server-sdk"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
@@ -264,6 +268,7 @@ export function MessageTimeline(props: {
   const settings = useSettings()
   const dialog = useDialog()
   const sessionArchive = useSessionArchive()
+  const sessionDelete = useSessionDelete()
   const language = useLanguage()
   const { params, sessionKey } = useSessionKey()
   const ownerSessionKey = sessionKey()
@@ -313,6 +318,24 @@ export function MessageTimeline(props: {
   const parentTitle = createMemo(() => sessionTitle(parent()?.title) ?? language.t("command.session.new"))
   const getMsgParts = (msgId: string) => sync().data.part[msgId] ?? emptyParts
   const getMsgPart = (messageID: string, partID: string) => getMsgParts(messageID).find((part) => part.id === partID)
+  const findToolPart = (partID: string) => {
+    for (const message of sessionMessages()) {
+      const part = getMsgPart(message.id, partID)
+      if (part?.type === "tool") return part
+    }
+    return undefined
+  }
+  const copyToolOutput = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return
+    const partID = target.closest("[data-timeline-part-id]")?.getAttribute("data-timeline-part-id")
+    if (!partID) return
+    const output = completedToolOutput(findToolPart(partID))
+    if (!output) return
+    void writeClipboard(output).then((copied) => {
+      if (!copied) return
+      showToast({ title: language.t("ui.message.copied") })
+    })
+  }
   const childTaskDescription = createMemo(() => {
     const id = sessionID()
     if (!id) return
@@ -1118,6 +1141,7 @@ export function MessageTimeline(props: {
 
   function VirtualTimelineRow(props: { rowKey: string }) {
     let element: HTMLDivElement
+    let rowElement: HTMLDivElement | undefined
     const initialItem = virtualItemByKey().get(props.rowKey)!
     const initialRow = timelineRowByKey().get(props.rowKey)!
     const item = createMemo(() => virtualItemByKey().get(props.rowKey) ?? initialItem)
@@ -1133,6 +1157,11 @@ export function MessageTimeline(props: {
     let contentMeasureFrame: number | undefined
 
     onMount(() => virtualizer.measureElement(element))
+
+    onMount(() => {
+      if (!isNativeShell() || !rowElement) return
+      onCleanup(subscribeLongPress(rowElement, (event) => copyToolOutput(event.target)))
+    })
 
     createEffect(
       on(
@@ -1151,6 +1180,9 @@ export function MessageTimeline(props: {
     return (
       <div
         data-timeline-key={props.rowKey}
+        ref={(value) => {
+          rowElement = value
+        }}
         style={{
           position: "absolute",
           top: `${item().start - (showHeader() ? 64 : 0)}px`,
@@ -1437,7 +1469,14 @@ export function MessageTimeline(props: {
                                 </DropdownMenu.Item>
                                 <DropdownMenu.Separator />
                                 <DropdownMenu.Item
-                                  onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
+                                  onSelect={() =>
+                                    dialog.show(() => (
+                                      <DialogDeleteSession
+                                        name={titleLabel()}
+                                        onDelete={() => sessionDelete(id)}
+                                      />
+                                    ))
+                                  }
                                 >
                                   <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
                                 </DropdownMenu.Item>
@@ -1510,7 +1549,13 @@ export function MessageTimeline(props: {
                                 {language.t("common.archive")}
                               </MenuV2.Item>
                               <MenuV2.Separator />
-                              <MenuV2.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}>
+                              <MenuV2.Item
+                                onSelect={() =>
+                                  dialog.show(() => (
+                                    <DialogDeleteSession name={titleLabel()} onDelete={() => sessionDelete(id)} />
+                                  ))
+                                }
+                              >
                                 {language.t("common.delete")}...
                               </MenuV2.Item>
                             </MenuV2.Content>
