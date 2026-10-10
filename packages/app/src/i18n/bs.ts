@@ -1078,6 +1078,8 @@ export const dict = {
   "settings.providers.tag.other": "Ostalo",
   "settings.models.title": "Modeli",
   "settings.models.description": "Postavke modela će se ovdje moći podešavati.",
+  "settings.models.defaultModel.title": "Podrazumijevani model",
+  "settings.models.defaultModel.description": "Model koji se koristi za nove sesije.",
   "settings.agents.title": "Agenti",
   "settings.agents.description": "Postavke agenata će se ovdje moći podešavati.",
   "settings.commands.title": "Komande",

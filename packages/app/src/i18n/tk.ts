@@ -1085,6 +1085,8 @@ export const dict = {
   "settings.providers.tag.other": "Beýlekiler",
   "settings.models.title": "Modeller",
   "settings.models.description": "Model sazlamalary bu ýerde düzülip bilner.",
+  "settings.models.defaultModel.title": "Bellenen model",
+  "settings.models.defaultModel.description": "Täze sessiýalar üçin ulanylýan model.",
   "settings.agents.title": "Agentler",
   "settings.agents.description": "Agent sazlamalary bu ýerde düzülip bilner.",
   "settings.commands.title": "Buýruklar",

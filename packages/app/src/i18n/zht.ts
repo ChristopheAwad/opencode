@@ -1047,6 +1047,8 @@ export const dict = {
   "settings.providers.tag.other": "其他",
   "settings.models.title": "模型",
   "settings.models.description": "模型設定將在此處可設定。",
+  "settings.models.defaultModel.title": "預設模型",
+  "settings.models.defaultModel.description": "用於新增工作階段的模型。",
   "settings.agents.title": "代理程式",
   "settings.agents.description": "代理程式設定將在此處可設定。",
   "settings.commands.title": "命令",

@@ -1077,6 +1077,8 @@ export const dict = {
   "settings.providers.tag.other": "ផ្សេងទៀត។",
   "settings.models.title": "ម៉ូដែល",
   "settings.models.description": "ការកំណត់ម៉ូដែលនឹងអាចកំណត់បាននៅទីនេះ។",
+  "settings.models.defaultModel.title": "ម៉ូដែលលំនាំដើម",
+  "settings.models.defaultModel.description": "ម៉ូដែលដែលប្រើសម្រាប់សម័យថ្មី។",
   "settings.agents.title": "ភ្នាក់ងារ",
   "settings.agents.description": "ការកំណត់ភ្នាក់ងារនឹងអាចកំណត់បាននៅទីនេះ។",
   "settings.commands.title": "ពាក្យបញ្ជា",

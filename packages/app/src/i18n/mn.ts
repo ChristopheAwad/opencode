@@ -1094,6 +1094,8 @@ export const dict = {
   "settings.providers.tag.other": "Бусад",
   "settings.models.title": "Загварууд",
   "settings.models.description": "Загварын тохиргоог энд хийх боломжтой.",
+  "settings.models.defaultModel.title": "Өгөгдмөл загвар",
+  "settings.models.defaultModel.description": "Шинэ сессэд ашигладаг загвар.",
   "settings.agents.title": "Агентууд",
   "settings.agents.description": "Агентын тохиргоог энд хийх боломжтой.",
   "settings.commands.title": "Тушаалууд",

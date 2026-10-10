@@ -1083,6 +1083,8 @@ export const dict = {
   "settings.providers.tag.other": "Annað",
   "settings.models.title": "Fyrirmyndir",
   "settings.models.description": "Líkanstillingar verða stillanlegar hér.",
+  "settings.models.defaultModel.title": "Sjálfgefin fyrirmynd",
+  "settings.models.defaultModel.description": "Fyrirmynd sem notuð er fyrir nýjar setur.",
   "settings.agents.title": "Umboðsmenn",
   "settings.agents.description": "Umboðsmannsstillingar verða stillanlegar hér.",
   "settings.commands.title": "Skipanir",

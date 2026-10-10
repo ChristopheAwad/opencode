@@ -1074,6 +1074,8 @@ export const dict = {
   "settings.providers.tag.other": "ອື່ນໆ",
   "settings.models.title": "ຕົວແບບ",
   "settings.models.description": "ການຕັ້ງຄ່າຕົວແບບຈະຕັ້ງຄ່າໄດ້ທີ່ນີ້.",
+  "settings.models.defaultModel.title": "ຕົວແບບເລີ່ມຕົ້ນ",
+  "settings.models.defaultModel.description": "ຕົວແບບທີ່ໃຊ້ສຳລັບເຊດຊັນໃໝ່.",
   "settings.agents.title": "ຕົວແທນ",
   "settings.agents.description": "ການຕັ້ງຄ່າຕົວແທນຈະຖືກຕັ້ງຄ່າໄດ້ທີ່ນີ້.",
   "settings.commands.title": "ຄໍາສັ່ງ",

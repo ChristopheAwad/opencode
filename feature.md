@@ -1,246 +1,305 @@
-# R2 slice — widen durable replay to v1 sessions
+# R6 — Global default model setting (Settings → Models)
 
-This file is the handoff for the R2 replay slice and is overwritten from the
-approved plan. Read it top to bottom before touching code.
+This file is the handoff for R6 and is overwritten from the approved plan. Read
+it top to bottom before touching code.
 
 ## Status
 
-- R2: IN PROGRESS. The server replay widening slice shipped 2026-10-10
-  (squash-merged into `insecure-combined`). R2 stays `in progress`: the
-  vendored `@opencode-ai/client` upgrade and app-side replay consumption
-  remain follow-up R2 work.
-- R3 shipped 2026-10-10 (squash `57ca9f6c8b`, CI run `38017451055`, phone
-  check passed); `roadmap.md` holds the durable R3 record. R3 and this slice
-  ran in parallel; the user asked for parallel work and the global AGENTS.md
-  allows it.
-- Slice branch `r2-replay-v1` lived in a separate git worktree
-  (`/home/chris/Documents/code/opencode-r2`), branched from `insecure-combined`.
-  This deliberately diverged from `PERSONAL-FORK.md:28-36`'s dev-based flow:
-  of `feature.md`, `roadmap.md`, `PERSONAL-FORK.md`, and `AGENTS.md`, only
-  `AGENTS.md` exists on `dev`; `dev` (`0112a92c`) is an ancestor of
-  `insecure-combined` (`3577ecd9f7`); and the slice files are identical between
-  the two branches (the only shared-package diff is `packages/server/src/cors.ts`
-  plus `packages/opencode` UI/CORS test files, none touched by this slice).
-- `feature.md` disposition: this file is the R2 slice handoff. The R3 worktree
-  kept its own copy; the only merge conflict was this file, resolved to this
-  record. `roadmap.md` keeps both records.
-- Acceptance is server-test-only. Zero phone behavior change: the phone stays
-  v1 and never calls `/api/session/:id/history` or `.../event` until the
-  vendored client upgrade adds call sites (`packages/app/src/context/server-sdk.tsx:316-328`,
-  `packages/app/src/utils/server-compat.ts`;
-  `packages/app/src/context/server-session.ts:550-594` stays on legacy
-  `client.session.messages` for `protocol === "v1"`).
-- No R3 file overlap: this slice touches `packages/schema`, `packages/core`,
-  `packages/protocol`, `packages/server`, `packages/opencode`, `packages/client`,
-  and `packages/sdk/js` only.
-- Plan review gate PASSED 2026-10-09 (three reviewer rounds: 6 blockers fixed,
-  then 2, final round clean with 2 wording nits fixed).
+- R6: IN PROGRESS on branch `default-model-setting`, branched from
+  `insecure-combined` (`281ebefd7b`, which contains shipped R3 and the R2
+  replay slice).
+- R3 shipped 2026-10-10; R2 remains `in progress` (replay slice shipped, client
+  work remains). R6 has no file overlap with the R2 follow-ups.
+- Plan review gate PASSED (three reviewer rounds: 8 blockers fixed in round 2,
+  3 blockers in round 3, final round approved with no findings). The reviewer
+  session ran against `insecure-combined` with R3 uncommitted; R3 merged
+  without touching any R6 target file except a 2-line `mock-server.ts` config
+  addition, which is incorporated below.
+- Never stage `.husky/pre-push` (pre-existing local edit) or `screenshots/`.
+- No server or protocol changes. App-only.
+- Baseline recorded before code changes: see "Baseline" below.
 
-## Baseline (recorded 2026-10-09, before code changes)
+## Results (2026-10-10, branch `default-model-setting`)
 
-- `packages/schema`: `bun test` -> 13 pass / 2 fail, both pre-existing
-  `event-manifest.test.ts` (count drift 55 vs 58; `Definitions.slice(40,43)`
-  order drift). Not caused by this slice.
-- `packages/core`: `bun test test/session-history.test.ts` -> 6 pass.
-- `packages/protocol`: `bun test` -> 2 pass.
-- `packages/opencode`: `bun test test/server/httpapi-session.test.ts` -> 21
-  pass / 0 fail.
-- `packages/client`: `bun run check:generated` -> clean (exit 0), generated
-  files unchanged.
-- Fresh worktree setup: `bun install --ignore-scripts` (the full install fails
-  on the `tree-sitter-powershell` native build; the main worktree has no
-  compiled binary either, and the slice does not need it).
+- Commits: `6a5d91348c` (docs plan), `7230aa8644` (first-slash parse + tests),
+  `dfe8efa733` (save behavior + tests), `f3266c6e3c` (row, adapter, i18n),
+  `4eff0ccdf9` (inline picker), `e86a655690` (e2e).
+- Fork sync note: mid-work the user merged `upstream/dev` into
+  `insecure-combined` (`a92e481d87`) and stashed the WIP. The branch was
+  rebased onto the new tip with no conflicts; the merge touched none of the R6
+  files. `bun install --ignore-scripts` re-run after the merge.
+- `packages/app` `bun run test:unit`: 835 pass / 0 fail (baseline 827, +8 new).
+- `packages/app` `bun run typecheck` and `bun run typecheck:e2e`: clean.
+- Targeted e2e `regression/settings-default-model.spec.ts`: 8 pass / 0 fail.
+- Full e2e: 203 pass / 6 fail. Pre-existing known failures: 2
+  `tab-strip-mobile-scroll` specs. The other 4 (`mobile-session-menu` export,
+  `review-terminal-stacked`, `session-request-docks`, `session-todo-dock-navigation`)
+  all pass in isolation (19/19 re-run) — full-run flakes on this 5.3 GB
+  machine, the same class as R5's documented intermittent flakes. No failures
+  in the new spec.
+- `test:stability`: 44/44 (matches the R3 shipped baseline).
+- Deviations from the plan: inline picker instead of a nested dialog (see
+  Design); mock `/config` returns the in-memory config so the directory refresh
+  sees the write; `/pty/shells` added to `emptyList`; the desktop localStorage
+  seed is separate from `seedMobileServer` (the native test keeps its server
+  `list`); the race test closes settings with `dialog.press("Escape")` because
+  focus returns to the body after the inline list collapses.
 
-## Results (2026-10-09, branch `r2-replay-v1`)
+## Goal
 
-- Commits: `8fc5c9ee34` (schema + test), `3f4746e223` (core + tests),
-  `aa52a31186` (protocol + server/sdk-next tests), `18dddc0ed6` (regenerated
-  client, legacy SDK, `packages/sdk/openapi.json`).
-- Implementation: `SessionReplay` in `packages/schema/src/durable-event-manifest.ts`
-  (definitions = `Durable`; tagged union identifier `SessionReplayEvent`);
-  `SessionV2.history`/`events` use it (`packages/core/src/session.ts`);
-  both `/api/session/:id/history` and `.../event` success schemas use it
-  (`packages/protocol/src/groups/session.ts`).
-- Test results after the change:
-  - `packages/schema`: `bun test` -> 20 pass / 2 fail (same pre-existing
-    `event-manifest.test.ts` failures); `bun typecheck` clean. New
-    `durable-event-manifest.test.ts`: 7 pass.
-  - `packages/core`: full `bun test` -> 1105 pass / 0 fail; `bun typecheck`
-    clean. `session-history.test.ts` 10 pass (4 new tests: v1 replay, live-only
-    omission, historical+live tail, after-end exhaustion); `session-create.test.ts`
-    updated for the now-visible `session.created` seq 0; `session-prompt.test.ts`
-    unchanged as predicted.
-  - `packages/protocol`: `bun test` 2 pass; `bun typecheck` clean.
-  - `packages/server`: `bun typecheck` clean (no test script).
-  - `packages/client`: `bun run check:generated` green on the committed tree;
-    `bun typecheck` clean; `bun test` 16 pass. Mocked-fetch history/events tests
-    needed no change.
-  - `packages/opencode`: `bun typecheck` clean; `bun test test/server/httpapi-session.test.ts`
-    -> 22 pass (new legacy replay test incl. `limit=0`, `limit=101`, `after=abc`
-    -> 400); `bun run test:httpapi` -> 208 pass / 0 fail.
-  - `packages/sdk-next`: `bun typecheck` clean; `test/embedded.test.ts` ->
-    1 pass / 3 fail, all pre-existing (SQLite `SQLITE_CANTOPEN` opening temp
-    databases; verified identical on the stashed base). The updated stream uses
-    `after: 0` so its `session.next.model.switched` expectation stays valid.
-- Generated artifacts: `bun run generate` (client), `bun ./packages/sdk/js/script/build.ts`,
-  `bun dev generate > ../sdk/openapi.json`; prettier reports all generated files
-  unchanged. `packages/codemode/test/fixtures/opencode-v2-openapi.json` left
-  pinned.
+On the phone and on every app client using the V2 settings dialog, the user can
+set one global default model. The app writes the server's global config `model`
+field (`"provider/model"`) through the existing `PATCH /global/config`. New
+sessions with no chosen model resolve to it. Existing sessions keep their model
+(the session model freezes on the first user message).
 
-## Problem (reviewer-verified)
+## User decisions
 
-- Handlers `packages/server/src/handlers/session.ts:332-364` delegate to
-  `SessionV2.Service`.
-- `history` uses `EventV2.readAggregate` with `manifest: SessionDurable`
-  (`packages/core/src/session.ts:352-359`; the manifest at
-  `packages/schema/src/durable-event-manifest.ts:7-10` only carries
-  `SessionEvent.DurableDefinitions` = `session.next.*`). `events` filters with
-  `Schema.is(SessionEvent.Durable)` (`packages/core/src/session.ts:195,346-351`).
-- The legacy v1 runtime publishes v1 durable events through `EventV2Bridge`
-  (`packages/opencode/src/event-v2-bridge.ts:19-33`; publishers at
-  `packages/opencode/src/session/session.ts:535,622,631,637,746,857,869`) into
-  `EventTable` (`packages/core/src/event.ts:316-348`); v1 durable definitions
-  are at `packages/schema/src/v1/session.ts:502-630`.
-- The global `Durable` manifest already includes v1 durable definitions
-  (`packages/schema/src/durable-event-manifest.ts:12-15`, 35 keys);
-  `EventV2.readAggregate` and `EventV2.durable` already decode them. Only the
-  session replay manifest, the live filter, and the protocol schemas are narrow.
+- Control lives in Settings → Models (not in the model picker).
+- It applies only to new sessions; a saved per-workspace/draft/session model
+  keeps priority (fallback semantics).
+- No mobile bottom-nav settings entry; settings stays reachable through the
+  command palette.
+- Fallback semantics accepted.
 
-## Waiver (schema V1-event policy)
+## Verified existing behavior (file:line)
 
-`packages/schema/AGENTS.md` bars V1-only events from the current Protocol
-surface "unless a current-client requirement is documented". The requirement is
-documented in `roadmap.md:29-30` (phone replay catch-up). Add a short comment in
-`durable-event-manifest.ts` citing it. No protocol-exclusion test exists to
-update; `packages/schema/test/v1-isolation.test.ts:18-27` stays green because
-`durable-event-manifest.ts` imports the `./session-v1` compat entrypoint
-(allowed), not `./v1/`.
+- Server global default: `config.model`; `Provider.defaultModel()` uses it first
+  (`packages/opencode/src/provider/provider.ts:2030-2032`);
+  `SessionPrompt.createUserMessage` uses `input.model ?? ag.model ??
+  currentModel` (`packages/opencode/src/session/prompt.ts:646`); the session
+  model freezes on first user message (`prompt.ts:672-689`).
+- Write API: `PATCH /global/config`
+  (`packages/opencode/src/server/routes/instance/httpapi/groups/global.ts:97-116`)
+  -> `Config.updateGlobal` deep-merges the global config file, invalidates the
+  cache, and disposes instances when changed (`config.ts:656-680`; handler
+  `handlers/global.ts:77-82` emits `global.disposed`).
+- App plumbing: `useServerSync().updateConfig({...})`
+  (`packages/app/src/context/server-sync.tsx:713-724, 741`) already used for
+  `shell` and `disabled_providers`; on success it refetches bootstrap
+  (`713-723`); `global.disposed` also queues active directories (`599-613`).
+  Global config read: `data.config` getter (`server-sync.tsx:239, 283-285`);
+  pending getter `data.reload` (`287-289`).
+- Client resolution (v1): `resolveDefaultModel(providers.defaultModel(),
+  sync().data.config.model)`
+  (`packages/app/src/pages/session/composer/prompt-model-selection.ts:24-28`;
+  `packages/app/src/context/local.tsx:156-160`). On v1 the legacy `/provider`
+  response has no `defaultModel` property, so `resolveDefaultModel` falls back
+  to the legacy `config.model` string (`hooks/provider-catalog.ts:29-37`; tests
+  `provider-catalog.test.ts:69-76`). Order: prompt model -> agent model ->
+  configured default -> recent -> fallback (`prompt-model-selection.ts:39-45`;
+  `local.tsx:184`).
+- New sessions get fresh `uuid()` draftIDs
+  (`packages/app/src/context/tabs.tsx:209-212`); the V2 composer model is
+  `prompt.model` persisted per draftID (`context/prompt-state.ts:172-176`), so
+  a manual pick does not carry across new drafts. `store.draft` in `local.tsx`
+  holds the agent selection only; `input.agent()?.model` is the agent's
+  server-configured model, not a user pick.
+- Settings: `settings.open` always opens the V2 `DialogSettings`
+  (`packages/app/src/components/settings-dialog.tsx:20-24`); Models tab is
+  `SettingsModelsV2` (`components/settings-v2/models.tsx`); rows via
+  `SettingsRowV2`/`SettingsListV2` (`settings-v2/parts/`). Mobile reaches
+  settings via the command palette (`components/mobile-nav.tsx:32-38`).
+  `useServerProtocol()` is a memo accessor
+  (`context/server-sdk.tsx:494-497`).
+- Bug found: `resolveDefaultModel` does `legacy.split("/")` and drops slashes
+  inside model IDs (`hooks/provider-catalog.ts:35`), while the server parses on
+  the first slash only (`provider.ts:2080-2086`).
 
-## Changes
+## Design
 
-1. `packages/schema/src/durable-event-manifest.ts`:
-   - `sessionReplayDefinitions = [...SessionV1.Event.Definitions.filter((d) => d.durable !== undefined), ...SessionEvent.DurableDefinitions]`
-   - Keep `export const Durable = Event.durable(sessionReplayDefinitions)`
-     (content unchanged).
-   - Replace `SessionDurable` with:
-     ```ts
-     export const SessionReplay = {
-       definitions: Durable,
-       schema: Schema.Union(sessionReplayDefinitions, { mode: "oneOf" })
-         .pipe(Schema.toTaggedUnion("type"))
-         .annotate({ identifier: "SessionReplayEvent" }),
-     } as const
-     export type SessionReplayEvent = typeof SessionReplay.schema.Type
-     ```
-   - Generated artifact churn `SessionDurableEvent` -> `SessionReplayEvent` is
-     expected and regenerated below.
-2. `packages/core/src/session.ts`: use `SessionReplay` / `SessionReplayEvent`
-   in the `events` and `history` signatures and the live filter.
-3. `packages/protocol/src/groups/session.ts:311,332`: use
-   `SessionReplay.schema`; update both descriptions to say replay covers
-   `session.next.*` and legacy v1 durable events.
-4. Regeneration (required): `bun run generate` in `packages/client`;
-   `./script/generate.ts` from the repo root (regenerates
-   `packages/sdk/js/src/v2/gen/types.gen.ts` and `packages/sdk/openapi.json`);
-   inspect `git status`.
-   `packages/codemode/test/fixtures/opencode-v2-openapi.json` stays pinned
-   unless a test fails.
+1. `packages/app/src/hooks/provider-catalog.ts`: `resolveDefaultModel` splits
+   the legacy string on the FIRST `/` only and returns undefined when the
+   provider or model part is empty. The null-vs-undefined contract is
+   unchanged: `null` means "current server has a default, ignore legacy";
+   `undefined` means "legacy server, use `config.model`".
+   `parseConfigModel(value)` is `resolveDefaultModel(undefined, value)`; no
+   second parser.
+2. `packages/app/src/components/dialog-select-model.tsx`: export the existing
+   `ModelList` (add `export`). No other change. `ModelList` uses
+   `props.model ?? useLocal().model` (`:54`), so passing a model prop never
+   evaluates `useLocal()`. `DialogSelectModel` is untouched.
+3. New `packages/app/src/components/settings-v2/default-model-behavior.ts`:
+   pure `saveDefaultModel({ protocol, key, previous, set, update, refresh,
+   onError })`:
+   - return early (no request, no refresh) when `protocol !== "v1"` or
+     `key === previous`;
+   - `set(key)` (optimistic), then `await update({ model: key })`, then
+     `refresh()`;
+   - on throw: `set(previous)` and `onError(error)`.
+4. New `packages/app/src/components/settings-v2/default-model.tsx`:
+   - `createDefaultModelSelection()`: a `ModelSelection` adapter built from
+     `useModels()`, `useServerSync()`, `useServerProtocol()`, `useLanguage()`:
+     `ready: models.ready`, `current` (via `models.find(parseConfigModel(...))`,
+     all models, ignores visibility), `recent: () => []`, `list: models.list`,
+     `cycle: () => {}`, `set` (calls `saveDefaultModel`), `visible`,
+     `setVisibility`, and `variant` stubs (all empty).
+   - `SettingsDefaultModelV2`: `SettingsRowV2` title
+     `settings.models.defaultModel.title`, description
+     `settings.models.defaultModel.description`, control `ButtonV2` with
+     `data-action="settings-default-model"` and `aria-expanded`. Label order:
+     `command.model.choose` until `models.ready()`; then
+     `selection.current()?.name`; else the raw `config.model` string when
+     non-empty; else `command.model.choose`. Disabled while
+     `serverSync().data.reload === "pending"`. The button toggles an inline
+     `ModelList` panel (`data-component="settings-default-model-list"`) below
+     the row; selecting a model saves and collapses the panel.
+   - Deviation from the reviewed plan: the picker is inline, not a nested
+     `Dialog`. A nested V1 `Dialog` inside the V2 settings dialog makes the
+     settings dialog dismiss on pointerdown (the V1 `Dialog` does not register
+     a nested Kobalte dismissable layer), which closed the whole settings
+     dialog on every selection. The inline panel keeps the interaction inside
+     one dialog and is also phone-friendly. `ModelList` is still the shared
+     component (exported from `dialog-select-model.tsx`).
+5. `packages/app/src/components/settings-v2/models.tsx`: render
+   `<SettingsDefaultModelV2 />` above the search/list (outside
+   `useFilteredList`, so search never hides it), gated on
+   `useServerProtocol() === "v1"`.
+6. `packages/app/src/context/server-sync.tsx`: add `refreshDirectories()` to
+   the returned object: push every active child directory to the refresh queue
+   (`for (const directory of Object.keys(children.children)) if
+   (children.active(directory)) queue.push(directory)`). `saveDefaultModel`
+   calls it after the update resolves, when `queue.paused()` is false.
+7. i18n: add two keys to `en.ts` and all 61 non-English locales:
+   - `settings.models.defaultModel.title` = "Default model"
+   - `settings.models.defaultModel.description` = "Model used for new sessions."
+   Terminology anchors per locale: that locale's `settings.models.title`
+   (model term), `common.default` (default term), session strings
+   (`command.session.new`, home session strings). Keep established borrowings
+   (do not invent a translation where the locale keeps "Model"). No plurals,
+   so CLDR plural categories do not apply. Cross-check major locales against
+   the corpora listed in `packages/app/AGENTS.md` (Microsoft, Apple, Mozilla
+   firefox-l10n/Pontoon; RAE/Fundéu, FranceTerme, Duden, TDK, Kotus,
+   Språkrådet, Rada Języka Polskiego, and the other language authorities).
+   Record uncertain or region-specific terms in "Translation notes" below for
+   native review. The parity test
+   (`packages/app/src/i18n/parity.test.ts:99-120`) must stay green.
+8. Out of scope: clearing the default (server `Config.updateGlobal` deep-merges
+   and JSON drops `undefined`, so deleting a key needs a server change; no
+   clear affordance), `small_model`, agent model overrides, model favorites
+   (R4 #3), mobile settings redesign (R4), legacy settings UI, protocol v2
+   write support, bottom-nav settings entry.
 
-## Tests (write first)
+## Baseline
 
-1. New `packages/schema/test/durable-event-manifest.test.ts`:
-   - definitions contain the 7 v1 durable versioned keys (`session.created.1`,
-     `session.updated.1`, `session.deleted.1`, `message.updated.1`,
-     `message.removed.1`, `message.part.updated.1`, `message.part.removed.1`)
-     and the `session.next.*` keys including `session.next.step.ended.2`.
-   - definitions exclude v1 live-only types (`message.part.delta`,
-     `session.diff`, `session.error`) and `session.next.text.delta`.
-   - `Schema.is(SessionReplay.schema)` is true for a decoded v1
-     `message.part.updated` payload and a `session.next.step.ended` payload;
-     false for `message.part.delta`.
-   - decode a full v1 payload with `durable.version === 1`.
-2. `packages/core/test/session-history.test.ts` (update + add):
-   - `SessionV2.create` publishes `SessionV1.Event.Created` at seq 0
-     (`packages/core/src/session.ts:241-242`), now visible. Update sequence
-     expectations: paginate first page `[0,1]`, second `[3,4]` (the test-only
-     `GapEvent` at seq 2 stays filtered); includes-between-pages `[0]` then
-     `[1,2,3]`; reposition the exhaustion test with `after: 0`.
-   - New: publish `SessionV1.Event.MessageUpdated` and
-     `SessionV1.Event.PartUpdated` via `EventV2.Service`; `history` returns
-     them with `durable.version === 1` and intact data.
-   - New: `history` excludes a published live-only `SessionV1.Event.PartDelta`.
-   - New: `events({ after })` yields historical and newly published v1 durable
-     events, and never a live-only v1 event.
-   - New boundary: `after` at/after the last seq -> empty page, `hasMore` false.
-3. Update affected expectations (reviewer-found):
-   - `packages/core/test/session-create.test.ts:193-209` (test "omits legacy
-     creation rows from the V2 Session event stream"): rewrite to the new
-     contract (created visible, live-only omitted).
-   - `packages/core/test/session-create.test.ts:325-337` and `:353-370`: the
-     first event is now `session.created` at seq 0 (`take(2)` or `after: 0`).
-   - `packages/sdk-next/test/embedded.test.ts:55-57,91`: expect
-     `session.created` at seq 0 (or stream with `after: 0`).
-   - `packages/core/test/session-prompt.test.ts:186-213`: verify-only; the
-     setup inserts the Session row directly with no created event, so the
-     `[0,1,2,3]` prompt seqs are expected to stay unchanged.
-   - `packages/client/test/effect.test.ts:133-139,189` and
-     `promise.test.ts:131-137,200` are mocked-fetch tests: verify-only, expected
-     to need no change (the widened union still decodes `session.next.*`).
-4. Extend `packages/opencode/test/server/httpapi-session.test.ts`: create a
-   session through the legacy `Session` service, update a message/part, then
-   `GET /api/session/:id/history` and assert v1 durable events (matching
-   aggregateID, `durable.version === 1`), absence of `message.part.delta`, and
-   keep the missing-session 404. Add query boundaries `limit=0`, `limit=101`,
-   and non-numeric `after` -> 400 (`SessionHistoryLimit` at
-   `packages/protocol/src/groups/session.ts:87-92`; `after=-1` is already
-   covered at `packages/opencode/test/server/httpapi-exercise/index.ts:1096-1103`).
-5. `packages/client`: `bun run check:generated` green.
+Record before code changes:
 
-## Verification and shipping
+- `packages/app` `bun run test:unit`: 827 pass / 0 fail (recorded 2026-10-10,
+  before R6 code).
+- `packages/app` `bun run typecheck` and `bun run typecheck:e2e`: clean.
+- `test:stability`: 44/44 (R3 shipped state).
+- Full e2e: recorded in "Results" after the run; compare against the R3/R5
+  known pre-existing failures (2 `tab-strip-mobile-scroll` specs, and the R3
+  `adverse.spec.ts` fix makes stability 44/44).
 
-- Commands after the change:
-  - `packages/schema`: `bun typecheck`, `bun test`
-  - `packages/core`: `bun typecheck`, `bun test test/session-history.test.ts test/event.test.ts test/session-create.test.ts test/session-prompt.test.ts`
-  - `packages/protocol`: `bun typecheck`, `bun test`
-  - `packages/server`: `bun typecheck`, `bun test`
-  - `packages/client`: `bun run generate`, `bun run check:generated`, `bun typecheck`, `bun test`
-  - `packages/opencode`: `bun typecheck`, `bun test test/server/httpapi-session.test.ts`
-  - `packages/sdk-next`: `bun typecheck`, `bun test test/embedded.test.ts`
-- Accepted pre-existing failure: `packages/schema` `event-manifest.test.ts`
-  (2 tests). Must not grow.
-- Diff review gate (reviewer subagent) on
-  `git diff insecure-combined...r2-replay-v1`; fix blockers; rerun only on the
-  fixes.
-- After tests and diff review pass: wait for the user's explicit approval, then
-  `git merge --squash r2-replay-v1` into `insecure-combined`, delete the branch.
-  R2 stays `in progress`; add a shipped-slice line to R2 scope and extend R2
-  `Files` (`packages/schema`, `packages/core`, `packages/protocol`,
-  `packages/server`, `packages/opencode`, `packages/sdk/js`,
-  `packages/sdk/openapi.json`). Keep R3's shipped roadmap entry if R3 merged
-  first.
-- No phone check (server-only change); CI builds as usual after the merge.
+## Tests first
 
-## Risks
+Unit (`packages/app/src`, bun test, no wall-clock waits):
 
-- Widening a public protocol union: no in-repo consumer of `history`/`events`
-  today; generated artifacts are regenerated in the same change.
-- Historical sessions predating the durable bridge replay partially; replay is
-  catch-up, not full history (the R2 client design owns that boundary).
-- Pre-existing `packages/schema` test failures must not count as regressions.
+- `hooks/provider-catalog.test.ts`: add slashed model ID
+  `openrouter/meta-llama/llama-3-70b` -> `{providerID: "openrouter", modelID:
+  "meta-llama/llama-3-70b"}`; `"provider/"`, `"/model"`, `""` -> undefined;
+  existing null/undefined cases unchanged.
+- `components/settings-v2/default-model-behavior.test.ts`:
+  - success: `set(key)` called, one `update({ model: key })`, `refresh` called
+    once;
+  - failure: `set(key)` then `set(previous)`, `onError` called, no `refresh`;
+  - skip: `key === previous` -> no update, no refresh, no set;
+  - protocol guard: `protocol: "v2"` -> no update, no refresh, no set;
+  - previous undefined rollback on failure.
 
-## Plan review log (2026-10-09)
+E2E (`packages/app/e2e`, waits registered before the triggering action, no
+`waitForTimeout`):
 
-- Round 1: 6 blocking findings (dual in-progress/feature.md handling; branch
-  base vs PERSONAL-FORK; schema V1-event waiver; phone reachability stated;
-  regeneration scope; missed existing test expectations) plus nits. All fixed.
-- Round 2: 2 blocking findings (local `dev` exists; parallel + feature.md
-  disposition unstated). Fixed with verified facts.
-- Round 3: no blockers; 2 wording nits fixed.
+- Extend `utils/mock-server.ts`: `/global/config` handled method-aware (GET
+  returns the in-memory config, PATCH records `onConfigUpdate`, merges the body
+  into memory, returns it). R3 already added `config?: Record<string, unknown>`
+  to `MockServerConfig`; keep it. `/config` (the per-instance config) returns
+  the same in-memory config so the directory-config refresh sees the write.
+  `/pty/shells` joins `emptyList` (the General settings tab crashes on `{}`).
+- New `regression/settings-default-model.spec.ts`:
+  a. v1 empty config: open settings (`Control+,`), Models tab, row title and
+     description visible, button "Choose model"; open the inline list; pick
+     "Server A Model"; assert PATCH body `{ model: "server-a/server-a" }`; row
+     shows the model name after the bootstrap refetch; list collapses.
+  b. v1 initial `{ model: "server-a/server-a" }`: row shows the model name on
+     open; pick another model; second PATCH with the new value.
+  c. slashed model ID in the mock provider list and in the initial config: row
+     resolves to the display name (validates the first-slash parse end to end).
+  d. failure: PATCH-only `page.route` override returns 500, GET falls back
+     (`route.fallback()`); assert the "Request failed" toast and the rolled-back
+     row label.
+  e. v2 (`protocol: "v2"`): row not rendered.
+  f. mobile native shell: `mockOpenCodeServer` with `protocol: "v1"` +
+     `installNativeShell` + `seedMobileServer`; reach settings via the MobileNav
+     search/command palette; pick a model; PATCH fires. The desktop localStorage
+     seed must not overwrite `seedMobileServer`'s server `list` (the mock helper
+     seeds only for desktop tests).
+  g. race: after changing the default, immediately start a new session and
+     assert the composer model control shows the new default name (proves the
+     directory-config refresh; the provider fallback is a different model).
 
-## Diff review log (2026-10-09)
+## Commands (from package dirs)
 
-- Round 1 (fresh reviewer, `git diff insecure-combined...r2-replay-v1`): no
-  blockers. 3 nits: stale `event is SessionEvent.DurableEvent` filter
-  predicate; missing `data` assertions in the core and server replay tests;
-  no live-only event published during the tail test. All fixed locally without
-  a rerun (commit `52a5bd7540`); targeted tests and typecheck re-run green.
+- `packages/app`: `bun run typecheck`, `bun run typecheck:e2e`,
+  `bun run test:unit`, `bun run test:e2e -- regression/settings-default-model.spec.ts`,
+  full `bun run test:e2e`, `bun run test:stability`.
+- i18n parity runs inside `test:unit`.
+
+## Implementation order
+
+1. Tests first (unit + e2e above).
+2. `provider-catalog.ts` first-slash fix.
+3. `server-sync.tsx` `refreshDirectories()`.
+4. `default-model-behavior.ts` + `default-model.tsx` + export `ModelList`.
+5. `settings-v2/models.tsx` row.
+6. i18n keys in en + 61 locales.
+7. Full verification, diff review gate, then user approval to merge and push.
+
+## Risks and mitigations
+
+- Global config update disposes server instances -> brief reconnect on the
+  phone; the app already resyncs on `global.disposed`. Existing sessions are
+  unaffected (model frozen).
+- `config.model` affects the server globally (TUI/desktop/headless). Intended.
+- Directory-config staleness after the write: `refreshDirectories()` after the
+  mutation settles, plus e2e case (g).
+- Model IDs with slashes: fixed by the first-slash parse; covered by unit and
+  e2e cases.
+- Protocol v2: row hidden; save helper guards `protocol !== "v1"`.
+- Settings dialog on the phone is still desktop chrome (R4 will redesign it).
+  Accepted; R4 can swap the picker to the R3 `MobileSheet`.
+- i18n: 2 keys x 61 locales; parity test enforces key presence; translation
+  notes below.
+
+## Translation notes
+
+- Locales that keep an established borrowing for "model" follow their existing
+  `settings.models.title` value (for example id/ms keep "Model", ja/ko/zh keep
+  the CJK term).
+- Uncertain or region-specific values for native review: `dv` (Dhivehi
+  inflection of "new session"), `dz` (Dzongkha compound for "used for new
+  sessions"), `fo` (Faroese "fyrimynd" vs "model"), `km` (Khmer "សម័យ" for
+  session), `si` (Sinhala "ආකෘතිය" for model), `am` (Amharic "ክፍለ ጊዜ" for
+  session). All other locales reuse the exact terminology of their existing
+  settings/session strings.
+
+## Plan review log (2026-10-09/10)
+
+- Round 1: 8 blockers (wrong pending path; underspecified `ModelList` refactor;
+  e2e mock reverting the optimistic row; directory-scope staleness and draft
+  carryover; i18n fragment copy; no unset/invalid spec; missing branch/base and
+  roadmap transition; render-only v1 guard). All fixed.
+- Round 2: 3 blockers (DialogSelectModel `useLocal` crash outside a directory;
+  mobile e2e protocol contradiction; `onSuccess` queue paused timing). All
+  fixed: dedicated dialog on the exported `ModelList`; `mockOpenCodeServer`
+  v1 + `installNativeShell`; `refreshDirectories()` called after settle.
+- Round 3: approved, no blockers and no nits.
+
+## Diff review log (2026-10-10)
+
+- Round 1 (fresh reviewer, `git diff insecure-combined...HEAD`): no blockers.
+  3 nits fixed locally without a rerun: German `de.ts` relative pronoun
+  (`das` not `der`); `aria-controls="settings-default-model-list"` added to the
+  toggle; locale-count wording corrected to 61 non-English locales. Parity
+  test, typecheck, and the targeted e2e spec re-run green after the fixes.

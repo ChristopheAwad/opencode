@@ -1101,6 +1101,8 @@ export const dict = {
   "settings.providers.tag.other": "އެހެން",
   "settings.models.title": "މޮޑެލްތަކެވެ",
   "settings.models.description": "މޮޑެލް ސެޓިންގސް މިތަނުގައި ކޮންފިގްރޭޓް ކުރެވޭނެއެވެ.",
+  "settings.models.defaultModel.title": "ޑީފޯލްޓް މޮޑެލް",
+  "settings.models.defaultModel.description": "އާ ޖަލްސާއަށް ބޭނުންކުރާ މޮޑެލް.",
   "settings.agents.title": "އޭޖެންޓުންނެވެ",
   "settings.agents.description": "އޭޖެންޓް ސެޓިންގސް މިތަނުގައި ކޮންފިގްރޭޓް ކުރެވޭނެއެވެ.",
   "settings.commands.title": "އަމުރުތަކެވެ",

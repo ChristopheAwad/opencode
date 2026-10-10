@@ -1060,6 +1060,8 @@ export const dict = {
   "settings.providers.tag.other": "อื่น ๆ",
   "settings.models.title": "โมเดล",
   "settings.models.description": "การตั้งค่าโมเดลจะสามารถกำหนดค่าได้ที่นี่",
+  "settings.models.defaultModel.title": "โมเดลค่าเริ่มต้น",
+  "settings.models.defaultModel.description": "โมเดลที่ใช้สำหรับเซสชันใหม่",
   "settings.agents.title": "เอเจนต์",
   "settings.agents.description": "การตั้งค่าเอเจนต์จะสามารถกำหนดค่าได้ที่นี่",
   "settings.commands.title": "คำสั่ง",

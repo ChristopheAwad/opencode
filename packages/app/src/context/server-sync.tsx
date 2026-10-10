@@ -296,6 +296,12 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
     })
 
+  const refreshDirectories = () => {
+    for (const directory of Object.keys(children.children)) {
+      if (children.active(directory)) queue.push(directory)
+    }
+  }
+
   let bootedAt = 0
   let bootingRoot = false
   let eventFrame: number | undefined
@@ -737,6 +743,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     disableMcp: children.disableMcp,
     queryOptions: queryOptionsApi,
     refreshProviders,
+    refreshDirectories,
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,

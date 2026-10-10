@@ -1097,6 +1097,8 @@ export const dict = {
   "settings.providers.tag.other": "Kita",
   "settings.models.title": "Modeliai",
   "settings.models.description": "Čia bus konfigūruojami modelio nustatymai.",
+  "settings.models.defaultModel.title": "Numatytasis modelis",
+  "settings.models.defaultModel.description": "Modelis, naudojamas naujuose seansuose.",
   "settings.agents.title": "Agentai",
   "settings.agents.description": "Agento nustatymus bus galima konfigūruoti čia.",
   "settings.commands.title": "Komandos",

@@ -32,6 +32,8 @@ export function resolveDefaultModel(
 ) {
   if (current !== undefined) return current ?? undefined
   if (!legacy) return undefined
-  const [providerID, modelID] = legacy.split("/")
-  return { providerID, modelID }
+  const value = legacy.trim()
+  const index = value.indexOf("/")
+  if (index <= 0 || index === value.length - 1) return undefined
+  return { providerID: value.slice(0, index), modelID: value.slice(index + 1) }
 }

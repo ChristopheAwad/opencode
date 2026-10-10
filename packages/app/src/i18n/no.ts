@@ -905,6 +905,8 @@ export const dict = {
   "settings.providers.tag.other": "Annet",
   "settings.models.title": "Modeller",
   "settings.models.description": "Modellinnstillinger vil kunne konfigureres her.",
+  "settings.models.defaultModel.title": "Standardmodell",
+  "settings.models.defaultModel.description": "Modell som brukes for nye sesjoner.",
   "settings.agents.title": "Agenter",
   "settings.agents.description": "Agentinnstillinger vil kunne konfigureres her.",
   "settings.commands.title": "Kommandoer",

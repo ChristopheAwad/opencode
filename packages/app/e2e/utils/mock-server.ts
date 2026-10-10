@@ -1,11 +1,12 @@
 import type { Page, Route } from "@playwright/test"
 
-const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff"])
-const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
+const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff", "/pty/shells"])
+const emptyObject = new Set(["/config", "/provider/auth", "/mcp", "/experimental/resource"])
 
 export interface MockServerConfig {
   protocol?: "v1" | "v2"
   config?: Record<string, unknown>
+  onConfigUpdate?: (body: Record<string, unknown>) => void
   provider: unknown | (() => unknown)
   providerV2?: {
     providers: Array<Record<string, unknown> & { id: string; name: string }>
@@ -40,6 +41,7 @@ export interface MockServerConfig {
 export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
   const cursors = new Map<string, string>()
   let nextCursor = 0
+  const globalConfig: Record<string, unknown> = { ...(config.config ?? {}) }
   const staticRoutes: Record<string, unknown> = {
     "/path": {
       state: config.directory,
@@ -197,7 +199,15 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
-    if (emptyObject.has(path)) return json(route, path.endsWith("config") ? (config.config ?? {}) : {})
+    if (path === "/global/config" || path === "/config") {
+      if (path === "/global/config" && route.request().method() === "PATCH") {
+        const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>
+        config.onConfigUpdate?.(body)
+        Object.assign(globalConfig, body)
+      }
+      return json(route, globalConfig)
+    }
+    if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
     if (path === "/api/session") {
       const directory = url.searchParams.get("directory")

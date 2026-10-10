@@ -1096,6 +1096,8 @@ export const dict = {
   "settings.providers.tag.other": "Anders",
   "settings.models.title": "Modellen",
   "settings.models.description": "Modelinstellingen kunnen hier worden geconfigureerd.",
+  "settings.models.defaultModel.title": "Standaardmodel",
+  "settings.models.defaultModel.description": "Model dat wordt gebruikt voor nieuwe sessies.",
   "settings.agents.title": "Agenten",
   "settings.agents.description": "Agentinstellingen kunnen hier worden geconfigureerd.",
   "settings.commands.title": "Commando's",

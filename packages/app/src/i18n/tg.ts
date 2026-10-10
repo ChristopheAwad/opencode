@@ -1090,6 +1090,8 @@ export const dict = {
   "settings.providers.tag.other": "Дигар",
   "settings.models.title": "Моделҳо",
   "settings.models.description": "Танзимоти модел дар ин ҷо танзим карда мешавад.",
+  "settings.models.defaultModel.title": "Модели пешфарз",
+  "settings.models.defaultModel.description": "Моделе, ки барои сеансҳои нав истифода мешавад.",
   "settings.agents.title": "Агентҳо",
   "settings.agents.description": "Танзимоти агент дар ин ҷо танзим карда мешавад.",
   "settings.commands.title": "Фармонҳо",

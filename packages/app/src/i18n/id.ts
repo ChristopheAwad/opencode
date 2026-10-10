@@ -1172,6 +1172,8 @@ export const dict = {
   "settings.providers.tag.other": "Lainnya",
   "settings.models.title": "Model",
   "settings.models.description": "Pengaturan model akan dapat dikonfigurasi di sini.",
+  "settings.models.defaultModel.title": "Model bawaan",
+  "settings.models.defaultModel.description": "Model yang digunakan untuk sesi baru.",
   "settings.agents.title": "Agen",
   "settings.agents.description": "Pengaturan agen akan dapat dikonfigurasi di sini.",
   "settings.commands.title": "Perintah",

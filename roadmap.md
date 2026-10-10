@@ -77,8 +77,18 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Out of scope: durable event replay and persisted cursor (R2), push notifications, iOS, desktop-only chrome changes.
 - Shipped: commit `6834f18eef`, CI run `37977618749` built the APK; phone check passed 2026-10-09. Home-list archive coalesces duplicate taps even though the row button is hidden; the visible header archive path shows pending feedback.
 
+## R6 — Global default model setting (Settings → Models)
+
+- Status: in progress
+- Tier: 2
+- Effort: S
+- Depends on: R1
+- Files: `packages/app/src/components/dialog-select-model.tsx`, `packages/app/src/components/settings-v2/models.tsx`, `packages/app/src/components/settings-v2/default-model.tsx` (new), `packages/app/src/components/settings-v2/default-model-behavior.ts` (new), `packages/app/src/hooks/provider-catalog.ts`, `packages/app/src/context/server-sync.tsx`, `packages/app/src/i18n/`, `packages/app/e2e/utils/mock-server.ts`, `packages/app/e2e/regression/settings-default-model.spec.ts` (new)
+- Goal: one Settings → Models row that sets the server's global default model (`config.model`) so new sessions use it when no model was chosen. Existing sessions keep their model.
+- Out of scope: clearing the default, protocol v2 write support, mobile settings redesign (R4), model favorites (R4 #3), legacy settings UI.
+
 ## Implementation order
 
-1. R3: M6b Waves B and C.
+1. R6: global default model setting.
 2. R4: mobile daily-use features.
-3. R2: parity and resume hardening.
+3. R2: parity and resume hardening (client follow-ups).

@@ -1094,6 +1094,8 @@ export const dict = {
   "settings.providers.tag.other": "ostalo",
   "settings.models.title": "Modeli",
   "settings.models.description": "Ovdje će se moći konfigurirati postavke modela.",
+  "settings.models.defaultModel.title": "Zadani model",
+  "settings.models.defaultModel.description": "Model koji se koristi za nove sesije.",
   "settings.agents.title": "Agenti",
   "settings.agents.description": "Ovdje će se moći konfigurirati postavke agenta.",
   "settings.commands.title": "Naredbe",

@@ -1056,6 +1056,8 @@ export const dict = {
   "settings.providers.tag.other": "ሌላ",
   "settings.models.title": "ሞዴሎች",
   "settings.models.description": "የሞዴል ቅንብሮች እዚህ ሊዋቀሩ ይችላሉ።",
+  "settings.models.defaultModel.title": "ነባሪ ሞዴል",
+  "settings.models.defaultModel.description": "ለአዲስ ክፍለ ጊዜ የሚያገለግል ሞዴል።",
   "settings.agents.title": "ወኪሎች",
   "settings.agents.description": "የወኪል ቅንብሮች እዚህ ይዋቀራሉ።",
   "settings.commands.title": "ትዕዛዞች",

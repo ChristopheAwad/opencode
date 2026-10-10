@@ -1096,6 +1096,8 @@ export const dict = {
   "settings.providers.tag.other": "Boshqa",
   "settings.models.title": "Modellar",
   "settings.models.description": "Model sozlamalari bu erda sozlanishi mumkin.",
+  "settings.models.defaultModel.title": "Standart model",
+  "settings.models.defaultModel.description": "Yangi sessiyalar uchun ishlatiladigan model.",
   "settings.agents.title": "Agentlar",
   "settings.agents.description": "Bu yerda agent sozlamalari sozlanishi mumkin.",
   "settings.commands.title": "Buyruqlar",

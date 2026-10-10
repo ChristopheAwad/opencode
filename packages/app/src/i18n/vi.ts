@@ -1095,6 +1095,8 @@ export const dict = {
   "settings.providers.tag.other": "Khác",
   "settings.models.title": "Mô hình",
   "settings.models.description": "Cài đặt mô hình sẽ được cấu hình ở đây.",
+  "settings.models.defaultModel.title": "Mô hình mặc định",
+  "settings.models.defaultModel.description": "Mô hình được dùng cho các phiên mới.",
   "settings.agents.title": "Tác nhân",
   "settings.agents.description": "Cài đặt tác nhân sẽ được cấu hình ở đây.",
   "settings.commands.title": "Lệnh",

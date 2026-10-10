@@ -1095,6 +1095,8 @@ export const dict = {
   "settings.providers.tag.other": "Digər",
   "settings.models.title": "Modellər",
   "settings.models.description": "Model tənzimləmələri burada konfiqurasiya edilə biləcək.",
+  "settings.models.defaultModel.title": "Standart model",
+  "settings.models.defaultModel.description": "Yeni sessiyalar üçün istifadə olunan model.",
   "settings.agents.title": "Agentlər",
   "settings.agents.description": "Agent tənzimləmələri burada konfiqurasiya edilə biləcək.",
   "settings.commands.title": "Əmrlər",

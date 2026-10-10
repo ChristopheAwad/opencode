@@ -1098,6 +1098,8 @@ export const dict = {
   "settings.providers.tag.other": "Άλλο",
   "settings.models.title": "Μοντέλα",
   "settings.models.description": "Οι ρυθμίσεις μοντέλου μπορούν να διαμορφωθούν εδώ.",
+  "settings.models.defaultModel.title": "Προεπιλεγμένο μοντέλο",
+  "settings.models.defaultModel.description": "Μοντέλο που χρησιμοποιείται για νέες συνεδρίες.",
   "settings.agents.title": "Πράκτορες",
   "settings.agents.description": "Οι ρυθμίσεις πρακτόρων μπορούν να διαμορφωθούν εδώ.",
   "settings.commands.title": "Εντολές",

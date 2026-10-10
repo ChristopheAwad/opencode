@@ -75,3 +75,25 @@ test("uses config for legacy servers", () => {
     modelID: "claude",
   })
 })
+
+test("keeps slashes inside legacy model IDs", () => {
+  expect(resolveDefaultModel(undefined, "openrouter/meta-llama/llama-3-70b")).toEqual({
+    providerID: "openrouter",
+    modelID: "meta-llama/llama-3-70b",
+  })
+})
+
+test("trims surrounding whitespace in legacy values", () => {
+  expect(resolveDefaultModel(undefined, " anthropic/claude ")).toEqual({
+    providerID: "anthropic",
+    modelID: "claude",
+  })
+})
+
+test("ignores malformed legacy values", () => {
+  expect(resolveDefaultModel(undefined, "")).toBeUndefined()
+  expect(resolveDefaultModel(undefined, "   ")).toBeUndefined()
+  expect(resolveDefaultModel(undefined, "anthropic")).toBeUndefined()
+  expect(resolveDefaultModel(undefined, "/claude")).toBeUndefined()
+  expect(resolveDefaultModel(undefined, "anthropic/")).toBeUndefined()
+})

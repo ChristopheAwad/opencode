@@ -1080,6 +1080,8 @@ export const dict = {
   "settings.providers.tag.other": "Annað",
   "settings.models.title": "Fyrimyndir",
   "settings.models.description": "Model innstillingar verða stillaðar her.",
+  "settings.models.defaultModel.title": "Forsett fyrimynd",
+  "settings.models.defaultModel.description": "Fyrimynd sum verður brúkt fyri nýggjar setanir.",
   "settings.agents.title": "Agentar",
   "settings.agents.description": "Agentinnstillingar verða stillaðar her.",
   "settings.commands.title": "Skipanir",

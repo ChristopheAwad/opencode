@@ -985,6 +985,8 @@ export const dict = {
   "settings.providers.tag.other": "Muut",
   "settings.models.title": "Mallit",
   "settings.models.description": "Mallin asetukset voidaan määrittää täällä.",
+  "settings.models.defaultModel.title": "Oletusmalli",
+  "settings.models.defaultModel.description": "Uusissa istunnoissa käytettävä malli.",
   "settings.agents.title": "Agentit",
   "settings.agents.description": "Agentin asetukset voidaan määrittää täällä.",
   "settings.commands.title": "Komennot",

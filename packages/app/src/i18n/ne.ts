@@ -1083,6 +1083,8 @@ export const dict: Record<string, string> = {
   "settings.providers.tag.other": "अन्य",
   "settings.models.title": "मोडेलहरू",
   "settings.models.description": "मोडेल सेटिङहरू यहाँ कन्फिगर योग्य हुनेछ।",
+  "settings.models.defaultModel.title": "पूर्वनिर्धारित मोडेल",
+  "settings.models.defaultModel.description": "नयाँ सत्रका लागि प्रयोग गरिने मोडेल।",
   "settings.agents.title": "एजेन्टहरू",
   "settings.agents.description": "एजेन्ट सेटिङहरू यहाँ कन्फिगर योग्य हुनेछ।",
   "settings.commands.title": "आदेशहरू",

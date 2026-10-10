@@ -1098,6 +1098,8 @@ export const dict = {
   "settings.providers.tag.other": "Altres",
   "settings.models.title": "Models",
   "settings.models.description": "La configuració del model es podrà configurar aquí.",
+  "settings.models.defaultModel.title": "Model per defecte",
+  "settings.models.defaultModel.description": "Model utilitzat per a sessions noves.",
   "settings.agents.title": "Agents",
   "settings.agents.description": "La configuració de l'agent es podrà configurar aquí.",
   "settings.commands.title": "Ordres",

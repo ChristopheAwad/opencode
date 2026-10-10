@@ -13,6 +13,7 @@ import { popularProviders } from "@/hooks/use-providers"
 import { Persist, persisted } from "@/utils/persist"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
+import { SettingsDefaultModelV2 } from "./default-model"
 import "./settings-v2.css"
 
 type ModelItem = ReturnType<ReturnType<typeof useModels>["list"]>[number]
@@ -81,6 +82,7 @@ export const SettingsModelsV2: Component = () => {
       </div>
 
       <div class="settings-v2-tab-body settings-v2-models">
+        <SettingsDefaultModelV2 />
         <Show
           when={!list.grouped.loading}
           fallback={

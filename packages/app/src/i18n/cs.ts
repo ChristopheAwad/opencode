@@ -1089,6 +1089,8 @@ export const dict = {
   "settings.providers.tag.other": "Jiné",
   "settings.models.title": "Modely",
   "settings.models.description": "Zde bude možné konfigurovat nastavení modelu.",
+  "settings.models.defaultModel.title": "Výchozí model",
+  "settings.models.defaultModel.description": "Model použitý pro nové relace.",
   "settings.agents.title": "Agenti",
   "settings.agents.description": "Zde bude možné konfigurovat nastavení agenta.",
   "settings.commands.title": "Příkazy",

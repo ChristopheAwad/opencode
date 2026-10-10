@@ -1083,6 +1083,8 @@ export const dict = {
   "settings.providers.tag.other": "Lain-lain",
   "settings.models.title": "Model",
   "settings.models.description": "Tetapan model boleh dikonfigurasi di sini.",
+  "settings.models.defaultModel.title": "Model lalai",
+  "settings.models.defaultModel.description": "Model yang digunakan untuk sesi baharu.",
   "settings.agents.title": "Ejen",
   "settings.agents.description": "Tetapan ejen boleh dikonfigurasi di sini.",
   "settings.commands.title": "Arahan",

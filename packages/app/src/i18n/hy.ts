@@ -1090,6 +1090,8 @@ export const dict = {
   "settings.providers.tag.other": "Այլ",
   "settings.models.title": "Մոդելներ",
   "settings.models.description": "Մոդելի կարգավորումները կարգավորելի կլինեն այստեղ։",
+  "settings.models.defaultModel.title": "Լռելյայն մոդել",
+  "settings.models.defaultModel.description": "Նոր նիստերի համար օգտագործվող մոդել։",
   "settings.agents.title": "Գործակալներ",
   "settings.agents.description": "Գործակալի կարգավորումները կկարգավորվեն այստեղ։",
   "settings.commands.title": "Հրամաններ",

@@ -1100,6 +1100,8 @@ export const dict = {
   "settings.providers.tag.other": "အခြား",
   "settings.models.title": "မော်ဒယ်များ",
   "settings.models.description": "မော်ဒယ်လ်ဆက်တင်များကို ဤနေရာတွင် စီစဉ်သတ်မှတ်နိုင်မည်ဖြစ်သည်။",
+  "settings.models.defaultModel.title": "မူရင်း မော်ဒယ်",
+  "settings.models.defaultModel.description": "စက်ရှင်အသစ်များအတွက် အသုံးပြုသည့် မော်ဒယ်။",
   "settings.agents.title": "အေးဂျင့်များ",
   "settings.agents.description": "အေးဂျင့်ဆက်တင်များကို ဤနေရာတွင် ပြင်ဆင်သတ်မှတ်နိုင်ပါမည်။",
   "settings.commands.title": "အမိန့်များ",
