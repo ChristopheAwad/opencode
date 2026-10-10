@@ -5,16 +5,18 @@ it top to bottom before touching code.
 
 ## Status
 
-- R6: IN PROGRESS on branch `default-model-setting`, branched from
-  `insecure-combined` (`281ebefd7b`, which contains shipped R3 and the R2
-  replay slice).
+- R6: SHIPPED 2026-10-10. Squash commit `0180671d8e`; CI run `38027644591`
+  built the APK (both jobs green); phone check passed. `roadmap.md` holds the
+  durable record; implementation order is now R4 → R2.
 - R3 shipped 2026-10-10; R2 remains `in progress` (replay slice shipped, client
-  work remains). R6 has no file overlap with the R2 follow-ups.
+  work remains). R6 had no file overlap with the R2 follow-ups.
 - Plan review gate PASSED (three reviewer rounds: 8 blockers fixed in round 2,
   3 blockers in round 3, final round approved with no findings). The reviewer
   session ran against `insecure-combined` with R3 uncommitted; R3 merged
   without touching any R6 target file except a 2-line `mock-server.ts` config
   addition, which is incorporated below.
+- Diff review gate PASSED 2026-10-10 (fresh reviewer, no blockers; 3 nits
+  fixed locally).
 - Never stage `.husky/pre-push` (pre-existing local edit) or `screenshots/`.
 - No server or protocol changes. App-only.
 - Baseline recorded before code changes: see "Baseline" below.
