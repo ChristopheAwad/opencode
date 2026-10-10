@@ -35,7 +35,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 
 ## R3 — opencode mobile app: mobile shell polish
 
-- Status: in progress
+- Status: shipped 2026-10-10
 - Tier: 2
 - Effort: L
 - Depends on: R1
@@ -43,6 +43,7 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 - Goal: finish the native-feel shell after Wave A lands on the phone.
 - Scope: **M6b Waves B and C** in `feature.md` — W5 mobile sheets, W6 touch targets and long-press, W7 gestures and haptics, W8 timeline performance (measure first; targeted fixes only).
 - Out of scope: iOS, push notifications, true native rewrite.
+- Shipped: squash commit `57ca9f6c8b`; CI run `38017451055` built the APK; phone check passed 2026-10-10. Delivered W5 bottom sheets for the model/agent pickers, W6 long-press session action sheet with full 3-dot parity plus tool-output copy and native tap sizes, W7 swipe-to-archive with haptics (`@capacitor/haptics`), and the W8 `adverse.spec.ts` stability fix (`test:stability` 44/44). The long-session benchmark cannot run on the 5.3 GB dev machine; `test:stability` is the timeline regression gate.
 
 ## R4 — opencode mobile app: daily-use features
 

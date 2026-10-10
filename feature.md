@@ -5,20 +5,21 @@ plan. Read it top to bottom before touching code.
 
 ## Status
 
-- R3: IN PROGRESS (pulled 2026-10-09). Plan review gate PASSED 2026-10-09
-  (three reviewer rounds; all blocking findings fixed, final round clean).
-- W5-W8 implemented on `r3-shell-polish` (commits `f72ddb0548` through
-  `e71f077e67`). Diff review gate PASSED 2026-10-10 (one blocking round:
-  RTL swipe direction, outside-tap reveal close, agent zero-options guard;
-  all fixed, verification round found no blockers, two nits fixed).
+- R3: SHIPPED 2026-10-10. Phone check passed. Squash commit `57ca9f6c8b`;
+  CI run `38017451055` built the APK. Next work: R4 (mobile daily-use
+  features), then R2.
+- W5-W8 implemented on the deleted `r3-shell-polish` branch (commits
+  `f72ddb0548` through `193504d716`). Diff review gate PASSED 2026-10-10
+  (one blocking round: RTL swipe direction, outside-tap reveal close, agent
+  zero-options guard; all fixed, verification round found no blockers, two
+  nits fixed).
 - Final verification 2026-10-10: app `typecheck` + `typecheck:e2e` pass;
   unit 827; browser 46; session-ui 88; `test:stability` 44/44; full e2e
   201 specs with 194-195 passing. Remaining failures are the 2 pre-existing
   `tab-strip-mobile-scroll` specs plus load flakes that pass in isolation on
   this 5.3 GB machine (same pattern as the recorded baseline).
-- Next: push `r3-shell-polish` with explicit user approval (`--no-verify`),
-  CI builds the APK, phone check covers W5-W8, then squash-merge into
-  `insecure-combined` and mark R3 shipped.
+- Next: R4 (mobile daily-use features) is the next roadmap item, pulled only
+  when the user asks. R3 closed; `roadmap.md` marks it shipped.
 - Push `--no-verify` only with explicit approval (the pre-push hook OOMs on
   this 5.3 GB machine). Never stage `.husky/pre-push` or `screenshots/`.
 - User scope decisions (2026-10-09): W5 = sheet primitive + model and agent
