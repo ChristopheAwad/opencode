@@ -19,14 +19,14 @@ Tiers: 1 = small fix, 2 = feature, 3 = strategic work that is not planned until 
 
 ## R2 — opencode mobile app: parity and resume hardening
 
-- Status: planned
+- Status: in progress
 - Tier: 2
 - Effort: XL
 - Depends on: R1
-- Files: `packages/mobile/`, `packages/app/src/`, `packages/app/vendor/` (vendored `@opencode-ai/client` upgrade), `packages/client/`
+- Files: `packages/mobile/`, `packages/app/src/`, `packages/app/vendor/` (vendored `@opencode-ai/client` upgrade), `packages/client/`; replay widening slice shipped in `packages/schema/`, `packages/core/`, `packages/protocol/`, `packages/server/`, `packages/opencode/`, `packages/sdk/js/`, `packages/sdk/openapi.json`
 - Goal: feature parity for daily phone use and true resume.
 - Scope:
-  - Durable per-session replay catch-up via `GET /api/session/:id/history` and `GET /api/session/:id/event?after=`. Finding 2026-10-09: the phone runs protocol v1 and the replay endpoints only carry `session.next.*` events from V2-runtime sessions, so replay returns nothing for the phone's sessions today. This needs server/protocol work (widen replay to v1 durable aggregates) or a session-runtime migration before the vendored client upgrade can unlock it.
+  - Durable per-session replay catch-up via `GET /api/session/:id/history` and `GET /api/session/:id/event?after=`. Finding 2026-10-09: the phone runs protocol v1 and the replay endpoints only carry `session.next.*` events from V2-runtime sessions, so replay returns nothing for the phone's sessions today. Server replay widening shipped 2026-10-10: both endpoints now replay legacy v1 durable events; the rest of R2 (vendored client upgrade, cursor caching, settled state, feature gaps, composer, iOS) is not started.
   - Settled/idle state saved across app restarts; replay cursor cached per session.
   - Feature gaps: edit-and-resend, reasoning display option, subagent drill-down, skill-call display.
   - Mobile composer polish: attachments and file references.

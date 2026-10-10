@@ -5715,7 +5715,7 @@ export class Session3 extends HeyApiClient {
   /**
    * Get session history
    *
-   * Read one finite page of public durable Session events after an exclusive aggregate sequence. Newly committed events may appear on later pages.
+   * Read one finite page of durable Session events after an exclusive aggregate sequence, including legacy v1 session events. Newly committed events may appear on later pages.
    */
   public history<ThrowOnError extends boolean = false>(
     parameters: {
@@ -5747,7 +5747,7 @@ export class Session3 extends HeyApiClient {
   /**
    * Subscribe to session events
    *
-   * Replay durable events after an aggregate sequence, then continue with new durable events.
+   * Replay durable events after an aggregate sequence, including legacy v1 session events, then continue with new durable events.
    */
   public events<ThrowOnError extends boolean = false>(
     parameters: {

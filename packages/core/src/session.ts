@@ -36,7 +36,7 @@ import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
 import { Revert } from "@opencode-ai/schema/revert"
 import { FSUtil } from "./fs-util"
-import { SessionDurable } from "@opencode-ai/schema/durable-event-manifest"
+import { SessionReplay, type SessionReplayEvent } from "@opencode-ai/schema/durable-event-manifest"
 
 export const RevertState = Revert.State
 export type RevertState = Revert.State
@@ -133,12 +133,12 @@ export interface Interface {
   readonly events: (input: {
     sessionID: SessionSchema.ID
     after?: number
-  }) => Stream.Stream<SessionEvent.DurableEvent, NotFoundError>
+  }) => Stream.Stream<SessionReplayEvent, NotFoundError>
   readonly history: (input: {
     sessionID: SessionSchema.ID
     after?: number
     limit: number
-  }) => Effect.Effect<{ events: ReadonlyArray<SessionEvent.DurableEvent>; hasMore: boolean }, NotFoundError>
+  }) => Effect.Effect<{ events: ReadonlyArray<SessionReplayEvent>; hasMore: boolean }, NotFoundError>
   readonly switchAgent: (input: { sessionID: SessionSchema.ID; agent: string }) => Effect.Effect<void, NotFoundError>
   readonly switchModel: (input: {
     sessionID: SessionSchema.ID
@@ -192,7 +192,7 @@ const layer = Layer.effect(
     const store = yield* SessionStore.Service
     const locations = yield* LocationServiceMap.Service
     const decodeMessage = Schema.decodeUnknownEffect(SessionMessage.Message)
-    const isDurableSessionEvent = Schema.is(SessionEvent.Durable)
+    const isDurableSessionEvent = Schema.is(SessionReplay.schema)
     const decode = (row: typeof SessionMessageTable.$inferSelect) =>
       decodeMessage({ ...row.data, id: row.id, type: row.type }).pipe(
         Effect.mapError(
@@ -348,13 +348,13 @@ const layer = Layer.effect(
           result
             .get(input.sessionID)
             .pipe(Effect.as(events.durable({ aggregateID: input.sessionID, after: input.after }))),
-        ).pipe(Stream.filter((event): event is SessionEvent.DurableEvent => isDurableSessionEvent(event))),
+        ).pipe(Stream.filter((event): event is SessionReplayEvent => isDurableSessionEvent(event))),
       history: Effect.fn("V2Session.history")(function* (input) {
         yield* result.get(input.sessionID)
         return yield* EventV2.readAggregate(db, {
           ...input,
           aggregateID: input.sessionID,
-          manifest: SessionDurable,
+          manifest: SessionReplay,
         })
       }),
       prompt: Effect.fn("V2Session.prompt")((input) =>

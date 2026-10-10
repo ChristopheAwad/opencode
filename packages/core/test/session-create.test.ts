@@ -190,7 +190,7 @@ describe("SessionV2.create", () => {
     }),
   )
 
-  it.effect("omits legacy creation rows from the V2 Session event stream", () =>
+  it.effect("replays the legacy creation row before V2 Session events", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service
       const events = yield* EventV2.Service
@@ -200,8 +200,9 @@ describe("SessionV2.create", () => {
       yield* SessionInput.promoteSteers(db, events, created.id, Number.MAX_SAFE_INTEGER)
 
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(2), Stream.runCollect)),
+        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(3), Stream.runCollect)),
       ).toMatchObject([
+        { durable: { seq: 0 }, type: "session.created" },
         { durable: { seq: 1 }, type: "session.next.prompt.admitted", data: { prompt: { text: "Hello" } } },
         { durable: { seq: 2 }, type: "session.next.prompted" },
       ])
@@ -331,7 +332,9 @@ describe("SessionV2.create", () => {
 
       expect(yield* session.get(created.id)).toMatchObject({ agent: "plan" })
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(1), Stream.runCollect)),
+        Array.from(
+          yield* session.events({ sessionID: created.id, after: 0 }).pipe(Stream.take(1), Stream.runCollect),
+        ),
       ).toMatchObject([{ type: "session.next.agent.switched", data: { agent: "plan" } }])
     }),
   )
@@ -364,7 +367,9 @@ describe("SessionV2.create", () => {
 
       expect(yield* session.get(created.id)).toMatchObject({ model })
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(1), Stream.runCollect)),
+        Array.from(
+          yield* session.events({ sessionID: created.id, after: 0 }).pipe(Stream.take(1), Stream.runCollect),
+        ),
       ).toMatchObject([{ type: "session.next.model.switched", data: { model } }])
     }),
   )

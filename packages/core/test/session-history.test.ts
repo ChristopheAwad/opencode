@@ -1,18 +1,21 @@
 import { describe, expect } from "bun:test"
-import { Effect, Layer, Schema } from "effect"
+import { Effect, Fiber, Layer, Schema, Stream } from "effect"
 import { Database } from "@opencode-ai/core/database/database"
 import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { EventV2 } from "@opencode-ai/core/event"
 import { Location } from "@opencode-ai/core/location"
+import { ModelV2 } from "@opencode-ai/core/model"
 import { ProjectV2 } from "@opencode-ai/core/project"
 import { ProjectTable } from "@opencode-ai/core/project/sql"
+import { ProviderV2 } from "@opencode-ai/core/provider"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionStore } from "@opencode-ai/core/session/store"
 import { SessionTable } from "@opencode-ai/core/session/sql"
+import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { testEffect } from "./lib/effect"
 
 const projects = Layer.succeed(
@@ -69,6 +72,106 @@ describe("SessionV2.history", () => {
     }),
   )
 
+  it.effect("replays legacy v1 durable events published by the compatibility runtime", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const events = yield* EventV2.Service
+      const created = yield* session.create({ location })
+      yield* events.publish(SessionV1.Event.MessageUpdated, {
+        sessionID: created.id,
+        info: {
+          id: SessionV1.MessageID.make("msg_replay_user"),
+          sessionID: created.id,
+          role: "user",
+          time: { created: 1 },
+          agent: "build",
+          model: { providerID: ProviderV2.ID.make("test"), modelID: ModelV2.ID.make("test") },
+        },
+      })
+      yield* events.publish(SessionV1.Event.PartUpdated, {
+        sessionID: created.id,
+        part: {
+          id: SessionV1.PartID.make("prt_replay_text"),
+          sessionID: created.id,
+          messageID: SessionV1.MessageID.make("msg_replay_user"),
+          type: "text",
+          text: "hello",
+        },
+        time: 2,
+      })
+
+      const page = yield* session.history({ sessionID: created.id, limit: 10 })
+
+      expect(page.events.map((event) => [event.durable?.seq, event.type])).toEqual([
+        [0, "session.created"],
+        [1, "message.updated"],
+        [2, "message.part.updated"],
+      ])
+      expect(page.events.map((event) => event.durable?.version)).toEqual([1, 1, 1])
+      expect(page.events[1]).toMatchObject({
+        data: { sessionID: created.id, info: { id: "msg_replay_user", role: "user" } },
+      })
+      expect(page.events[2]).toMatchObject({
+        data: { sessionID: created.id, part: { id: "prt_replay_text", type: "text", text: "hello" } },
+      })
+      expect(page.hasMore).toBe(false)
+    }),
+  )
+
+  it.effect("omits live-only legacy events from history", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const events = yield* EventV2.Service
+      const created = yield* session.create({ location })
+      yield* events.publish(SessionV1.Event.PartDelta, {
+        sessionID: created.id,
+        messageID: SessionV1.MessageID.make("msg_replay_user"),
+        partID: SessionV1.PartID.make("prt_replay_text"),
+        field: "text",
+        delta: "ignored",
+      })
+
+      const page = yield* session.history({ sessionID: created.id, limit: 10 })
+
+      expect(page.events.map((event) => event.type)).toEqual(["session.created"])
+    }),
+  )
+
+  it.effect("tails legacy v1 durable events after an aggregate sequence", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const events = yield* EventV2.Service
+      const created = yield* session.create({ location })
+      yield* events.publish(SessionV1.Event.MessageRemoved, {
+        sessionID: created.id,
+        messageID: SessionV1.MessageID.make("msg_replay_removed"),
+      })
+
+      const fiber = yield* session
+        .events({ sessionID: created.id, after: 0 })
+        .pipe(Stream.take(2), Stream.runCollect, Effect.forkScoped)
+      yield* Effect.yieldNow
+      yield* events.publish(SessionV1.Event.PartDelta, {
+        sessionID: created.id,
+        messageID: SessionV1.MessageID.make("msg_replay_removed"),
+        partID: SessionV1.PartID.make("prt_replay_removed"),
+        field: "text",
+        delta: "live-only",
+      })
+      yield* events.publish(SessionV1.Event.PartRemoved, {
+        sessionID: created.id,
+        messageID: SessionV1.MessageID.make("msg_replay_removed"),
+        partID: SessionV1.PartID.make("prt_replay_removed"),
+      })
+      const streamed = Array.from(yield* Fiber.join(fiber))
+
+      expect(streamed.map((event) => [event.durable?.seq, event.type])).toEqual([
+        [1, "message.removed"],
+        [2, "message.part.removed"],
+      ])
+    }),
+  )
+
   it.effect("treats after as an exclusive aggregate sequence", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service
@@ -104,7 +207,7 @@ describe("SessionV2.history", () => {
 
       expect(first.hasMore).toBe(true)
       expect(second.hasMore).toBe(false)
-      expect(sequence).toEqual([1, 3, 4])
+      expect(sequence).toEqual([0, 1, 3, 4])
       expect(new Set(sequence).size).toBe(sequence.length)
     }),
   )
@@ -125,7 +228,7 @@ describe("SessionV2.history", () => {
       })
 
       expect(first.hasMore).toBe(true)
-      expect([...first.events, ...second.events].map((event) => event.durable?.seq)).toEqual([1, 2, 3])
+      expect([...first.events, ...second.events].map((event) => event.durable?.seq)).toEqual([0, 1, 2, 3])
       expect(second.hasMore).toBe(false)
     }),
   )
@@ -137,8 +240,8 @@ describe("SessionV2.history", () => {
       yield* session.switchAgent({ sessionID: created.id, agent: "one" })
       yield* session.switchAgent({ sessionID: created.id, agent: "two" })
 
-      const exact = yield* session.history({ sessionID: created.id, limit: 2 })
-      const oneMore = yield* session.history({ sessionID: created.id, limit: 1 })
+      const exact = yield* session.history({ sessionID: created.id, after: 0, limit: 2 })
+      const oneMore = yield* session.history({ sessionID: created.id, after: 0, limit: 1 })
       const exhausted = yield* session.history({
         sessionID: created.id,
         after: oneMore.events.at(-1)?.durable?.seq,
@@ -151,6 +254,17 @@ describe("SessionV2.history", () => {
       expect(oneMore.hasMore).toBe(true)
       expect(exhausted.events).toHaveLength(1)
       expect(exhausted.hasMore).toBe(false)
+    }),
+  )
+
+  it.effect("returns an exhausted page after the last sequence", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const created = yield* session.create({ location })
+
+      const page = yield* session.history({ sessionID: created.id, after: 0, limit: 10 })
+
+      expect(page).toEqual({ events: [], hasMore: false })
     }),
   )
 

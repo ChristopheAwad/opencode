@@ -388,6 +388,43 @@ describe("session HttpApi", () => {
     { git: true, config: { formatter: false, lsp: false } },
   )
 
+  it.instance(
+    "replays legacy v1 durable events through the v2 history endpoint",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const headers = { "x-opencode-directory": test.directory }
+        const session = yield* createSession({ title: "legacy replay" })
+        const message = yield* createTextMessage(session.id, "hello")
+
+        const history = yield* requestJson<{
+          data: Array<{ type: string; durable?: { aggregateID: string; seq: number; version: number }; data?: unknown }>
+          hasMore: boolean
+        }>(`/api/session/${session.id}/history`, { headers })
+
+        expect(history.data.map((event) => event.type)).toEqual([
+          "session.created",
+          "message.updated",
+          "message.part.updated",
+        ])
+        expect(history.data.map((event) => event.durable?.version)).toEqual([1, 1, 1])
+        expect(history.data.every((event) => event.durable?.aggregateID === session.id)).toBe(true)
+        expect(history.data[1]).toMatchObject({
+          data: { sessionID: session.id, info: { id: message.info.id, role: "user" } },
+        })
+        expect(history.data[2]).toMatchObject({
+          data: { sessionID: session.id, part: { messageID: message.info.id, type: "text", text: "hello" } },
+        })
+        expect(history.data.some((event) => event.type === "message.part.delta")).toBe(false)
+        expect(history.hasMore).toBe(false)
+
+        expect((yield* request(`/api/session/${session.id}/history?limit=0`, { headers })).status).toBe(400)
+        expect((yield* request(`/api/session/${session.id}/history?limit=101`, { headers })).status).toBe(400)
+        expect((yield* request(`/api/session/${session.id}/history?after=abc`, { headers })).status).toBe(400)
+      }),
+    { git: true, config: { formatter: false, lsp: false } },
+  )
+
   it.live("uses the persisted session directory for prompt requests", () =>
     Effect.gen(function* () {
       const llm = yield* TestLLMServer

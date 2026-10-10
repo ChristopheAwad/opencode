@@ -20,7 +20,7 @@ import { Agent } from "@opencode-ai/schema/agent"
 import { Model } from "@opencode-ai/schema/model"
 import { Location } from "@opencode-ai/schema/location"
 import { Revert } from "@opencode-ai/schema/revert"
-import { SessionEvent } from "@opencode-ai/schema/session-event"
+import { SessionReplay } from "@opencode-ai/schema/durable-event-manifest"
 
 const SessionsQueryFields = {
   workspace: Workspace.ID.pipe(Schema.optional),
@@ -308,7 +308,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
         params: { sessionID: Session.ID },
         query: SessionHistoryQuery,
         success: Schema.Struct({
-          data: Schema.Array(SessionEvent.Durable),
+          data: Schema.Array(SessionReplay.schema),
           hasMore: Schema.Boolean,
         }).annotate({ identifier: "SessionHistory" }),
         error: SessionNotFoundError,
@@ -319,7 +319,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.history",
             summary: "Get session history",
             description:
-              "Read one finite page of public durable Session events after an exclusive aggregate sequence. Newly committed events may appear on later pages.",
+              "Read one finite page of durable Session events after an exclusive aggregate sequence, including legacy v1 session events. Newly committed events may appear on later pages.",
           }),
         ),
     )
@@ -329,7 +329,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
         query: {
           after: Schema.NumberFromString.pipe(Schema.decodeTo(NonNegativeInt), Schema.optional),
         },
-        success: HttpApiSchema.StreamSse({ data: SessionEvent.Durable }),
+        success: HttpApiSchema.StreamSse({ data: SessionReplay.schema }),
         error: SessionNotFoundError,
       })
         .middleware(sessionLocationMiddleware)
@@ -337,7 +337,8 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           OpenApi.annotations({
             identifier: "v2.session.events",
             summary: "Subscribe to session events",
-            description: "Replay durable events after an aggregate sequence, then continue with new durable events.",
+            description:
+              "Replay durable events after an aggregate sequence, including legacy v1 session events, then continue with new durable events.",
           }),
         ),
     )
